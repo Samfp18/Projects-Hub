@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Monitor de Chat — Google Chat</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/dayjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/locale/pt-br.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/plugin/relativeTime.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { 400:'#60a5fa', 500:'#3b82f6', 600:'#2563eb' }
+      },
+      fontFamily: { sans:['Inter','system-ui','sans-serif'], mono:['JetBrains Mono','monospace'] }
+    }
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  body { background: #0b1120; }
+  ::-webkit-scrollbar { width: 3px; }
+  ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+  .glass { background: rgba(255,255,255,0.035); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.07); }
+  .glass-hover:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+  .fade-up { animation: fadeUp .3s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+  .slide-in { animation: slideIn .2s ease; }
+  @keyframes newMsg { 0%{background:rgba(59,130,246,0.12)} 100%{background:transparent} }
+  .new-msg { animation: newMsg 3s ease forwards; }
+  @keyframes ping { 75%,100%{transform:scale(1.5);opacity:0} }
+  .ping { animation: ping 1.5s cubic-bezier(0,0,.2,1) infinite; }
+  .msg-bubble { transition: all .15s; }
+  .msg-bubble:hover { background: rgba(255,255,255,0.04) !important; }
+</style>
+</head>
+<body class="font-sans text-slate-100 min-h-screen">
+<div id="root"></div>
+<script type="text/babel">
+dayjs.extend(window.dayjs_plugin_relativeTime);
+dayjs.locale('pt-br');
+
+const { useState, useEffect, useCallback, useRef, useMemo } = React;
+const API_KEY = 'monitor_chat_api_v2';
+
+const ESPACO_ICONS = { suporte:'🛠', ti:'🖥', infra:'⚙️', vendas:'💼', comercial:'💼', financ:'📊', rh:'👥', geral:'🌐', todos:'🌐' };
+function getIcon(nome) {
+  const n = (nome||'').toLowerCase();
+  for (const [k,v] of Object.entries(ESPACO_ICONS)) if (n.includes(k)) return v;
+  return '💬';
+}
+
+const AVATAR_COLORS = ['from-blue-500 to-indigo-600','from-emerald-500 to-teal-600','from-orange-500 to-red-500','from-pink-500 to-purple-600','from-yellow-500 to-orange-500','from-cyan-500 to-blue-600'];
+function avatarColor(nome) { return AVATAR_COLORS[(nome||'').charCodeAt(0)%AVATAR_COLORS.length]; }
+function initials(s) { return (s||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); }
+const fromNow = iso => iso ? dayjs(iso).fromNow() : '—';
+const toTime  = iso => iso ? dayjs(iso).format('HH:mm') : '';
+
+function Avatar({ nome, size='sm', avatar }) {
+  const sz = size==='lg'?'w-10 h-10 text-sm':size==='sm'?'w-8 h-8 text-xs':'w-7 h-7 text-xs';
+  if (avatar) return <img src={avatar} className={`${sz} rounded-full object-cover flex-shrink-0`} onError={e=>{e.target.style.display='none'}}/>;
+  return (
+    <div className={`${sz} rounded-full bg-gradient-to-br ${avatarColor(nome)} flex items-center justify-center font-bold text-white flex-shrink-0`}>
+      {initials(nome)}
+    </div>
+  );
+}
+
+// ── SETUP ─────────────────────────────────────────────────────────────
+function SetupModal({ onSave }) {
+  const [url, setUrl] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+      <div className="glass rounded-3xl w-full max-w-md p-8 fade-up text-center">
+        <div className="w-16 h-16 bg-brand-500/15 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-brand-500/20">
+          <i className="bi bi-chat-dots-fill text-3xl text-brand-400"/>
+        </div>
+        <h2 className="text-xl font-bold mb-1">Monitor de Chat</h2>
+        <p className="text-sm text-slate-400 mb-6">Cole a URL da Cloud Function do monitor para começar a ver as mensagens em tempo real.</p>
+        <input value={url} onChange={e=>setUrl(e.target.value)}
+          placeholder="https://…cloudfunctions.net/monitor_chat"
+          className="w-full bg-white/[0.05] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-slate-200 focus:outline-none focus:border-brand-500 mb-4 placeholder:text-slate-600"/>
+        <button onClick={()=>url.trim()&&onSave(url.trim())}
+          className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 font-semibold transition-colors flex items-center justify-center gap-2">
+          <i className="bi bi-broadcast"/>Conectar e monitorar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── MENSAGEM CARD ─────────────────────────────────────────────────────
+function MsgCard({ msg, isNew }) {
+  return (
+    <div className={`msg-bubble flex gap-3 p-3.5 rounded-2xl cursor-default ${isNew?'new-msg':''}`}>
+      <Avatar nome={msg.nome} avatar={msg.avatar} size="sm"/>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+          <span className="font-semibold text-sm text-slate-200">{msg.nome||'Desconhecido'}</span>
+          {msg.email && <span className="text-xs text-slate-500 font-mono truncate">{msg.email}</span>}
+          <span className="text-xs text-slate-600 font-mono ml-auto">{toTime(msg.recebido_em)}</span>
+        </div>
+        <p className="text-sm text-slate-300 leading-relaxed break-words">{msg.texto}</p>
+        {msg.espaco && (
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="text-xs text-slate-500 flex items-center gap-1">
+              <i className="bi bi-hash text-slate-600"/>{msg.espaco}
+            </span>
+            {isNew && <span className="px-1.5 py-0.5 text-xs bg-brand-500/20 text-brand-400 rounded font-semibold border border-brand-500/30">NOVA</span>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── APP ───────────────────────────────────────────────────────────────
+function App() {
+  const [apiUrl, setApiUrl]       = useState(() => localStorage.getItem(API_KEY) || '');
+  const [mensagens, setMensagens] = useState([]);
+  const [online, setOnline]       = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [busca, setBusca]         = useState('');
+  const [espaco, setEspaco]       = useState('todos');
+  const [lastIds, setLastIds]     = useState(new Set());
+  const [newIds, setNewIds]       = useState(new Set());
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const feedRef = useRef(null);
+
+  const salvarApi = useCallback((url) => {
+    const u = url.replace(/\/$/, '');
+    setApiUrl(u);
+    localStorage.setItem(API_KEY, u);
+  }, []);
+
+  const carregar = useCallback(async () => {
+    if (!apiUrl) return;
+    try {
+      const res  = await fetch(`${apiUrl}/mensagens?limite=300`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const msgs = data.mensagens || [];
+
+      setMensagens(prev => {
+        const idsAnteriores = new Set(prev.map(m=>m.id));
+        const novos = new Set(msgs.filter(m=>!idsAnteriores.has(m.id)).map(m=>m.id));
+        if (novos.size) setNewIds(n=>new Set([...n,...novos]));
+        return msgs;
+      });
+
+      setOnline(true);
+      setLastUpdate(new Date());
+    } catch {
+      setOnline(false);
+    }
+  }, [apiUrl]);
+
+  useEffect(() => {
+    if (!apiUrl) return;
+    setLoading(true);
+    carregar().finally(() => setLoading(false));
+    const id = setInterval(carregar, 10000);
+    return () => clearInterval(id);
+  }, [apiUrl, carregar]);
+
+  // Auto-limpa marcação "nova" após 8s
+  useEffect(() => {
+    if (!newIds.size) return;
+    const t = setTimeout(() => setNewIds(new Set()), 8000);
+    return () => clearTimeout(t);
+  }, [newIds]);
+
+  // Espaços únicos
+  const espacos = useMemo(() => {
+    const s = new Set(mensagens.map(m=>m.espaco).filter(Boolean));
+    return ['todos',...s];
+  }, [mensagens]);
+
+  // Contagem por espaço
+  const cntEspaco = useMemo(() => {
+    const c = {};
+    mensagens.forEach(m => { if (m.espaco) c[m.espaco] = (c[m.espaco]||0)+1; });
+    return c;
+  }, [mensagens]);
+
+  // Filtradas
+  const filtradas = useMemo(() => {
+    return mensagens.filter(m => {
+      if (espaco !== 'todos' && m.espaco !== espaco) return false;
+      if (busca) {
+        const t = busca.toLowerCase();
+        return (m.nome||'').toLowerCase().includes(t) ||
+               (m.email||'').toLowerCase().includes(t) ||
+               (m.texto||'').toLowerCase().includes(t);
+      }
+      return true;
+    }).sort((a,b) => new Date(b.recebido_em) - new Date(a.recebido_em));
+  }, [mensagens, espaco, busca]);
+
+  const novasCount = [...newIds].filter(id => mensagens.some(m=>m.id===id)).length;
+
+  function exportarCSV() {
+    const rows = [['ID','Nome','Email','Espaço','Mensagem','Recebido']];
+    mensagens.forEach(m => rows.push([m.id,m.nome||'',m.email||'',m.espaco||'',`"${(m.texto||'').replace(/"/g,'""')}"`,m.recebido_em||'']));
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(rows.map(r=>r.join(',')).join('\n'));
+    a.download = `chat_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  }
+
+  if (!apiUrl) return <SetupModal onSave={salvarApi}/>;
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+
+      {/* SIDEBAR */}
+      <aside className="w-64 flex-shrink-0 glass border-r border-white/[0.06] flex flex-col">
+        {/* Logo */}
+        <div className="px-5 py-4 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2.5 mb-1">
+            <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+              <i className="bi bi-chat-dots-fill text-white text-sm"/>
+            </div>
+            <div>
+              <div className="text-sm font-bold">Monitor de Chat</div>
+              <div className="text-xs text-slate-500 font-mono">Google Chat</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="px-5 py-3 border-b border-white/[0.06]">
+          <div className={`flex items-center gap-2 text-xs font-medium ${online?'text-emerald-400':'text-red-400'}`}>
+            <span className="relative flex h-2 w-2">
+              {online && <span className="ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"/>}
+              <span className={`relative inline-flex h-2 w-2 rounded-full ${online?'bg-emerald-400':'bg-red-400'}`}/>
+            </span>
+            {online?'Monitorando ao vivo':'Sem conexão'}
+          </div>
+          {lastUpdate && <div className="text-xs text-slate-600 font-mono mt-1">atualizado {fromNow(lastUpdate)}</div>}
+        </div>
+
+        {/* Busca */}
+        <div className="px-4 py-3 border-b border-white/[0.06]">
+          <div className="flex items-center gap-2 bg-white/[0.04] rounded-lg px-3 py-2 border border-white/[0.06]">
+            <i className="bi bi-search text-slate-500 text-xs"/>
+            <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar mensagem…"
+              className="bg-transparent text-xs text-slate-300 flex-1 focus:outline-none placeholder:text-slate-600"/>
+          </div>
+        </div>
+
+        {/* Espaços */}
+        <div className="flex-1 overflow-y-auto py-2">
+          <div className="px-4 pb-1 text-xs font-semibold text-slate-600 uppercase tracking-wider">Espaços</div>
+          {espacos.map(e => (
+            <button key={e} onClick={()=>setEspaco(e)}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${espaco===e?'bg-brand-500/10 text-brand-400 border-l-2 border-brand-500':'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border-l-2 border-transparent'}`}>
+              <span className="text-base">{getIcon(e)}</span>
+              <span className="flex-1 truncate font-medium">{e==='todos'?'Todos os espaços':e}</span>
+              <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${espaco===e?'bg-brand-500/20 text-brand-400':'bg-white/[0.06] text-slate-500'}`}>
+                {e==='todos'?mensagens.length:(cntEspaco[e]||0)}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div className="px-5 py-4 border-t border-white/[0.06] space-y-1.5">
+          <div className="flex justify-between text-xs"><span className="text-slate-500">Total</span><span className="font-mono font-medium">{mensagens.length}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-slate-500">Novas</span><span className="font-mono font-medium text-brand-400">{novasCount}</span></div>
+          <div className="flex justify-between text-xs"><span className="text-slate-500">Espaços</span><span className="font-mono font-medium">{espacos.length-1}</span></div>
+        </div>
+      </aside>
+
+      {/* MAIN */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* TOPBAR */}
+        <header className="glass border-b border-white/[0.06] px-5 h-14 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <h1 className="text-sm font-semibold">
+              {espaco==='todos'?'Todas as mensagens':espaco}
+            </h1>
+            {novasCount > 0 && (
+              <span className="px-2 py-0.5 text-xs bg-brand-500/20 text-brand-400 rounded-full font-semibold border border-brand-500/30 slide-in">
+                {novasCount} nova{novasCount>1?'s':''}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={carregar} className="glass glass-hover px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors">
+              <i className={`bi bi-arrow-repeat ${loading?'animate-spin':''}`}/>Atualizar
+            </button>
+            <button onClick={exportarCSV} className="glass glass-hover px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors">
+              <i className="bi bi-download"/>CSV
+            </button>
+            <button onClick={()=>{localStorage.removeItem(API_KEY);setApiUrl('');}} className="text-slate-600 hover:text-slate-400 text-xs transition-colors px-2 py-1.5">
+              <i className="bi bi-gear"/>
+            </button>
+          </div>
+        </header>
+
+        {/* FEED */}
+        <div ref={feedRef} className="flex-1 overflow-y-auto p-4 space-y-1.5">
+          {loading && !mensagens.length ? (
+            <div className="flex items-center justify-center h-full text-slate-500 gap-3">
+              <i className="bi bi-arrow-repeat animate-spin text-lg"/>
+              <span className="text-sm">Carregando mensagens…</span>
+            </div>
+          ) : !filtradas.length ? (
+            <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-4">
+              <i className="bi bi-chat-square-dots text-5xl opacity-30"/>
+              <div className="text-center">
+                <p className="text-sm font-medium mb-1">Nenhuma mensagem ainda</p>
+                <p className="text-xs text-slate-600">As mensagens do Google Chat aparecerão aqui em tempo real.</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="text-xs text-slate-600 font-mono px-1 mb-3">{filtradas.length} mensagem{filtradas.length!==1?'s':''}</div>
+              {filtradas.map((msg, i) => (
+                <div key={msg.id} className={i===0&&newIds.has(msg.id)?'slide-in':''}>
+                  <MsgCard msg={msg} isNew={newIds.has(msg.id)}/>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>

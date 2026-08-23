@@ -1,0 +1,4 @@
+anthropic>=0.40.0
+functions-framework>=3.0.0
+google-cloud-firestore>=2.16.0
+twilio>=9.0.0
