@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Central de Chamados</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/dayjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/locale/pt-br.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.10/plugin/relativeTime.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        brand: { 50:'#f0f4ff', 100:'#e0e8ff', 500:'#4f6ef7', 600:'#3b55e6', 700:'#2d42c7' },
+        slate: { 850:'#172033' }
+      },
+      fontFamily: { sans: ['Inter','system-ui','sans-serif'], mono: ['JetBrains Mono','monospace'] }
+    }
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  body { background: #0f1623; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 4px; }
+  .glass { background: rgba(255,255,255,0.04); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); }
+  .glass-hover:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+  .glow-green  { box-shadow: 0 0 20px rgba(34,197,94,0.15); }
+  .glow-yellow { box-shadow: 0 0 20px rgba(234,179,8,0.15); }
+  .glow-red    { box-shadow: 0 0 20px rgba(239,68,68,0.15); }
+  .glow-orange { box-shadow: 0 0 20px rgba(249,115,22,0.15); }
+  @keyframes fadeSlide { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+  .fade-slide { animation: fadeSlide .25s ease; }
+  @keyframes ping2 { 75%,100%{transform:scale(1.6);opacity:0} }
+  .ping2 { animation: ping2 1.5s cubic-bezier(0,0,.2,1) infinite; }
+  .badge-urgente { animation: pulse-badge 1.5s ease infinite; }
+  @keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.6} }
+  tr { transition: background .12s; }
+</style>
+</head>
+<body class="font-sans text-slate-100 min-h-screen">
+<div id="root"></div>
+<script type="text/babel">
+dayjs.extend(window.dayjs_plugin_relativeTime);
+dayjs.locale('pt-br');
+
+const { useState, useEffect, useCallback, useRef } = React;
+
+// ── CONSTANTES ────────────────────────────────────────────────────────
+const API_LS_KEY = 'chamados_api_v5';
+
+const CLF = {
+  'FÁCIL':   { label:'Fácil',   color:'text-emerald-400', bg:'bg-emerald-400/10', border:'border-emerald-400/30', dot:'bg-emerald-400', glow:'glow-green',  icon:'bi-check-circle' },
+  'MÉDIO':   { label:'Médio',   color:'text-yellow-400',  bg:'bg-yellow-400/10',  border:'border-yellow-400/30',  dot:'bg-yellow-400',  glow:'glow-yellow', icon:'bi-dash-circle' },
+  'DIFÍCIL': { label:'Difícil', color:'text-red-400',     bg:'bg-red-400/10',     border:'border-red-400/30',     dot:'bg-red-400',     glow:'glow-red',    icon:'bi-exclamation-circle' },
+  'URGENTE': { label:'Urgente', color:'text-orange-400',  bg:'bg-orange-400/10',  border:'border-orange-400/30',  dot:'bg-orange-400',  glow:'glow-orange', icon:'bi-lightning-fill', pulse:true },
+};
+
+const STATUS = {
+  'aberto':    { label:'Aberto',       color:'text-slate-400',  bg:'bg-slate-700/60' },
+  'andamento': { label:'Em andamento', color:'text-brand-500',  bg:'bg-brand-500/15' },
+  'resolvido': { label:'Resolvido',    color:'text-emerald-400',bg:'bg-emerald-400/10' },
+};
+
+const CANAL = {
+  'google_chat': { label:'Google Chat', icon:'bi-chat-dots-fill',  color:'text-blue-400' },
+  'whatsapp':    { label:'WhatsApp',    icon:'bi-whatsapp',        color:'text-emerald-400' },
+};
+
+// ── UTILS ─────────────────────────────────────────────────────────────
+const fromNow  = iso => iso ? dayjs(iso).fromNow() : '—';
+const esc      = s  => String(s||'');
+const initials = s  => (s||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+
+function Badge({ clf }) {
+  const c = CLF[clf] || CLF['FÁCIL'];
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${c.bg} ${c.color} ${c.border} ${c.pulse?'badge-urgente':''}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${c.dot} ${c.pulse?'ping2':''}`}/>
+      {c.label}
+    </span>
+  );
+}
+
+function StatusBadge({ status }) {
+  const s = STATUS[status] || STATUS['aberto'];
+  return <span className={`px-2 py-0.5 rounded text-xs font-medium ${s.bg} ${s.color}`}>{s.label}</span>;
+}
+
+function CanalBadge({ canal }) {
+  const c = CANAL[canal];
+  if (!c) return null;
+  return <span className={`inline-flex items-center gap-1 text-xs ${c.color}`}><i className={`bi ${c.icon}`}/>{c.label}</span>;
+}
+
+function Avatar({ nome, size='sm' }) {
+  const sz = size==='sm'?'w-8 h-8 text-xs':'w-10 h-10 text-sm';
+  const colors = ['from-brand-500 to-purple-600','from-emerald-500 to-teal-600','from-orange-500 to-red-600','from-pink-500 to-rose-600'];
+  const idx = (nome||'').charCodeAt(0) % colors.length;
+  return (
+    <div className={`${sz} rounded-full bg-gradient-to-br ${colors[idx]} flex items-center justify-center font-bold text-white flex-shrink-0`}>
+      {initials(nome)}
+    </div>
+  );
+}
+
+// ── STAT CARD ─────────────────────────────────────────────────────────
+function StatCard({ clf, count }) {
+  const c = CLF[clf];
+  return (
+    <div className={`glass rounded-2xl p-5 relative overflow-hidden ${c.glow} cursor-default select-none`}>
+      <div className={`absolute top-0 left-0 right-0 h-0.5 ${c.dot}`}/>
+      <div className={`text-xs font-semibold uppercase tracking-widest mb-3 ${c.color}`}>{c.label}</div>
+      <div className={`text-4xl font-extrabold font-mono mb-1 ${c.color}`}>{count}</div>
+      <div className="text-xs text-slate-500">chamados abertos</div>
+      <i className={`bi ${c.icon} absolute bottom-3 right-4 text-3xl opacity-10 ${c.color}`}/>
+    </div>
+  );
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────
+function Modal({ chamado, onClose, onSave }) {
+  const [status, setStatus] = useState(chamado?.status || 'aberto');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setStatus(chamado?.status || 'aberto');
+  }, [chamado]);
+
+  if (!chamado) return null;
+  const c = CLF[chamado.classificacao] || CLF['FÁCIL'];
+
+  async function salvar() {
+    setSaving(true);
+    await onSave(chamado.id, status);
+    setSaving(false);
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm"/>
+      <div className="glass rounded-2xl w-full max-w-lg relative z-10 fade-slide overflow-hidden">
+        <div className={`h-1 w-full ${c.dot}`}/>
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-5">
+            <div className="flex-1 pr-4">
+              <div className="flex items-center gap-2 mb-2"><Badge clf={chamado.classificacao}/><CanalBadge canal={chamado.canal}/></div>
+              <h2 className="text-base font-semibold text-slate-100 leading-snug">{chamado.resumo}</h2>
+            </div>
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-300 text-xl leading-none"><i className="bi bi-x-lg"/></button>
+          </div>
+
+          <div className="flex items-center gap-3 mb-5 p-3 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+            <Avatar nome={chamado.remetente_nome} size="md"/>
+            <div>
+              <div className="font-semibold text-sm">{chamado.remetente_nome||'—'}</div>
+              <div className="text-xs text-slate-400 font-mono">{chamado.remetente_email||chamado.remetente_fone||''}</div>
+            </div>
+            <div className="ml-auto text-xs text-slate-500 font-mono">{fromNow(chamado.criado_em)}</div>
+          </div>
+
+          <Field label="Mensagem original">
+            <div className="bg-black/30 rounded-lg p-3 text-sm text-slate-300 font-mono leading-relaxed border border-white/[0.06]">
+              {chamado.texto_original}
+            </div>
+          </Field>
+          <Field label="Motivo da classificação"><p className="text-sm text-slate-300">{chamado.motivo}</p></Field>
+          <Field label="Próximos passos"><p className="text-sm text-slate-300">{chamado.proximos_passos}</p></Field>
+          {chamado.diagnostico && <Field label="Diagnóstico detectado"><p className="text-sm text-slate-300">{chamado.diagnostico}</p></Field>}
+          <Field label="Tempo estimado"><p className="text-sm text-slate-300">{chamado.tempo_estimado}</p></Field>
+
+          <div className="flex items-center gap-3 mt-6 pt-5 border-t border-white/[0.06]">
+            <select value={status} onChange={e=>setStatus(e.target.value)}
+              className="flex-1 bg-white/[0.06] border border-white/10 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-brand-500">
+              <option value="aberto">Aberto</option>
+              <option value="andamento">Em andamento</option>
+              <option value="resolvido">Resolvido</option>
+            </select>
+            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 border border-white/10 hover:border-white/20 transition-colors">Fechar</button>
+            <button onClick={salvar} disabled={saving}
+              className="px-5 py-2 rounded-lg text-sm font-semibold bg-brand-500 hover:bg-brand-600 text-white transition-colors disabled:opacity-50 flex items-center gap-2">
+              {saving?<><i className="bi bi-arrow-repeat animate-spin"/>Salvando…</>:<><i className="bi bi-check-lg"/>Salvar</>}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return <div className="mb-4"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{label}</div>{children}</div>;
+}
+
+// ── DADOS DE DEMONSTRAÇÃO ─────────────────────────────────────────────
+const minAgo = m => new Date(Date.now() - m*60000).toISOString();
+
+const DEMO_CHAMADOS = [
+  { id:'d1', remetente_nome:'Ana Rodrigues',  remetente_email:'ana.rodrigues@empresa.com',  canal:'google_chat', classificacao:'URGENTE', status:'andamento', resumo:'Servidor de produção fora do ar, clientes sem acesso',        diagnostico:'🖥️ Indisponibilidade de servidor', texto_original:'O servidor principal caiu! Ninguém consegue logar no sistema. URGENTE, estamos perdendo vendas!', motivo:'Sistema crítico afetando produção e receita diretamente.', proximos_passos:'Acionar equipe de infraestrutura imediatamente e verificar logs do servidor.', tempo_estimado:'30 minutos', criado_em:minAgo(4) },
+  { id:'d2', remetente_nome:'Lena Fischer',   remetente_email:'lena.fischer@empresa.com',   canal:'google_chat', classificacao:'URGENTE', status:'aberto',    resumo:'Possível vazamento de dados entre contas de clientes',      diagnostico:'⚠️ Erro / Falha no sistema',       texto_original:'Recebi 3 reclamações de clientes dizendo que conseguem ver dados de outros usuários no portal.', motivo:'Possível brecha de segurança com impacto direto em privacidade de dados (LGPD).', proximos_passos:'Suspender acesso ao portal, acionar equipe de segurança e iniciar investigação.', tempo_estimado:'Imediato', criado_em:minAgo(9) },
+  { id:'d3', remetente_nome:'Carlos Menezes', remetente_fone:'+55 48 99812-4471',           canal:'whatsapp',    classificacao:'DIFÍCIL', status:'aberto',    resumo:'Integração com gateway de pagamentos retornando erro 500', diagnostico:'⚠️ Erro / Falha no sistema',       texto_original:'Nossa integração com o gateway de pagamentos está falhando. Código de erro 500. Tentei reiniciar mas não resolveu.', motivo:'Falha em sistema de pagamentos requer análise técnica especializada.', proximos_passos:'Verificar logs da API, contatar suporte do gateway e testar em homologação.', tempo_estimado:'4 horas', criado_em:minAgo(23) },
+  { id:'d4', remetente_nome:'Rafael Souza',   remetente_email:'rafael.souza@empresa.com',   canal:'google_chat', classificacao:'DIFÍCIL', status:'aberto',    resumo:'Migração de banco causou inconsistência em registros',     diagnostico:'💾 Perda de dados / Backup',       texto_original:'Após a migração do banco, alguns pedidos antigos aparecem com status errado. Afeta relatórios históricos.', motivo:'Problema de integridade de dados pós-migração, exige análise cuidadosa.', proximos_passos:'Fazer backup imediato, mapear registros afetados e criar script de correção.', tempo_estimado:'1 dia', criado_em:minAgo(48) },
+  { id:'d5', remetente_nome:'Priya Sharma',   remetente_email:'priya.sharma@empresa.com',   canal:'google_chat', classificacao:'MÉDIO',   status:'aberto',    resumo:'Relatório mensal demorando mais de 10 minutos para gerar',  diagnostico:'🐢 Lentidão / Performance',        texto_original:'O relatório de vendas do mês está muito lento, mais de 10 minutos. Antes era questão de segundos.', motivo:'Problema de performance que impacta produtividade, mas não bloqueia operação.', proximos_passos:'Verificar queries lentas no banco de dados e analisar índices.', tempo_estimado:'2 horas', criado_em:minAgo(37) },
+  { id:'d6', remetente_nome:'João Pereira',   remetente_fone:'+55 11 98765-0022',           canal:'whatsapp',    classificacao:'MÉDIO',   status:'andamento', resumo:'Dashboard não carrega gráficos no Safari',                  diagnostico:'⚠️ Erro / Falha no sistema',       texto_original:'Os gráficos do dashboard não aparecem no Safari. No Chrome funciona normal.', motivo:'Bug de compatibilidade de navegador afeta parte dos usuários.', proximos_passos:'Testar no Safari DevTools, verificar polyfills e corrigir CSS/JS incompatível.', tempo_estimado:'3 horas', criado_em:minAgo(72) },
+  { id:'d7', remetente_nome:'Bruno Oliveira', remetente_email:'bruno.oliveira@empresa.com', canal:'google_chat', classificacao:'FÁCIL',   status:'resolvido', resumo:'Conta bloqueada após múltiplas tentativas de senha',        diagnostico:'🔑 Acesso / Autenticação',         texto_original:'Tentei trocar minha senha várias vezes e acabou bloqueando minha conta. Como faço para desbloquear?', motivo:'Procedimento padrão de suporte, resolução simples pelo portal admin.', proximos_passos:'Acessar painel admin, desbloquear conta e enviar link de redefinição.', tempo_estimado:'10 minutos', criado_em:minAgo(54) },
+  { id:'d8', remetente_nome:'Mariana Costa',  remetente_fone:'+55 21 99433-1187',           canal:'whatsapp',    classificacao:'FÁCIL',   status:'resolvido', resumo:'Dúvida sobre exportação de dados para Excel',               diagnostico:'',                                 texto_original:'Preciso exportar a lista de clientes para Excel mas não achei essa opção no sistema.', motivo:'Dúvida de uso do sistema, respondida com documentação existente.', proximos_passos:'Enviar link do manual do usuário, seção 4.2 — Exportação de dados.', tempo_estimado:'5 minutos', criado_em:minAgo(95) },
+  { id:'d9', remetente_nome:'Diego Almeida',  remetente_email:'diego.almeida@empresa.com',  canal:'google_chat', classificacao:'FÁCIL',   status:'aberto',    resumo:'Impressora do setor financeiro sem responder',              diagnostico:'🖨️ Impressão / Periféricos',      texto_original:'A impressora do financeiro parou de imprimir. A fila fica travada e nada sai.', motivo:'Problema comum de fila de impressão, resolução rápida.', proximos_passos:'Limpar fila de impressão e reiniciar spooler no servidor.', tempo_estimado:'15 minutos', criado_em:minAgo(18) },
+  { id:'d10',remetente_nome:'Camila Torres',  remetente_email:'camila.torres@empresa.com',  canal:'google_chat', classificacao:'MÉDIO',   status:'aberto',    resumo:'VPN desconectando a cada 10 minutos em home office',        diagnostico:'🌐 Rede / Conectividade',          texto_original:'Minha VPN cai a cada 10 minutos mais ou menos. Trabalho de casa e isso está atrapalhando muito.', motivo:'Instabilidade de conexão VPN afeta produtividade do usuário remoto.', proximos_passos:'Verificar logs do concentrador VPN e testar perfil de conexão do usuário.', tempo_estimado:'2 horas', criado_em:minAgo(140) },
+];
+
+// ── SETUP MODAL ───────────────────────────────────────────────────────
+function SetupModal({ onSave, onDemo }) {
+  const [url, setUrl] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="glass rounded-2xl w-full max-w-md p-8 fade-slide text-center">
+        <div className="w-14 h-14 bg-brand-500/20 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <i className="bi bi-plug-fill text-2xl text-brand-500"/>
+        </div>
+        <h2 className="text-xl font-bold mb-2">Central de Chamados</h2>
+        <p className="text-sm text-slate-400 mb-6">Conecte-se à sua Cloud Function ou explore a interface com dados de demonstração.</p>
+        <input value={url} onChange={e=>setUrl(e.target.value)}
+          placeholder="https://…cloudfunctions.net/webhook_chamados"
+          className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-slate-200 focus:outline-none focus:border-brand-500 mb-3"/>
+        <button onClick={()=>url.trim()&&onSave(url.trim())}
+          className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 font-semibold text-white transition-colors mb-3">
+          <i className="bi bi-lightning-fill mr-2"/>Conectar
+        </button>
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-white/10"/><span className="text-xs text-slate-600">ou</span><div className="flex-1 h-px bg-white/10"/>
+        </div>
+        <button onClick={onDemo}
+          className="w-full py-3 rounded-xl border border-white/15 hover:border-white/30 hover:bg-white/[0.04] font-medium text-slate-300 transition-colors">
+          <i className="bi bi-eye mr-2"/>Ver demonstração
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── APP PRINCIPAL ─────────────────────────────────────────────────────
+function App() {
+  const [apiUrl, setApiUrl]         = useState(() => localStorage.getItem(API_LS_KEY) || '');
+  const [demoMode, setDemoMode]     = useState(false);
+  const [chamados, setChamados]     = useState([]);
+  const [filtroClf, setFiltroClf]   = useState('todos');
+  const [filtroStatus, setFStatus]  = useState('todos');
+  const [filtroCanal, setFCanal]    = useState('todos');
+  const [busca, setBusca]           = useState('');
+  const [online, setOnline]         = useState(false);
+  const [loading, setLoading]       = useState(false);
+  const [chamadoAberto, setAberto]  = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const intervalRef = useRef(null);
+
+  const salvarApi = useCallback((url) => {
+    const u = url.replace(/\/$/, '');
+    setApiUrl(u);
+    setDemoMode(false);
+    localStorage.setItem(API_LS_KEY, u);
+  }, []);
+
+  const ativarDemo = useCallback(() => {
+    setDemoMode(true);
+    setChamados(DEMO_CHAMADOS);
+    setOnline(true);
+    setLastUpdate(new Date());
+  }, []);
+
+  const carregar = useCallback(async () => {
+    if (!apiUrl || demoMode) return;
+    try {
+      const res  = await fetch(`${apiUrl}/chamados?limite=200`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setChamados(data.chamados || []);
+      setOnline(true);
+      setLastUpdate(new Date());
+    } catch {
+      setOnline(false);
+    }
+  }, [apiUrl, demoMode]);
+
+  useEffect(() => {
+    if (!apiUrl || demoMode) return;
+    setLoading(true);
+    carregar().finally(() => setLoading(false));
+    intervalRef.current = setInterval(carregar, 30000);
+    return () => clearInterval(intervalRef.current);
+  }, [apiUrl, demoMode, carregar]);
+
+  const salvarStatus = useCallback(async (id, status) => {
+    if (demoMode) {
+      setChamados(prev => prev.map(c => c.id === id ? {...c, status} : c));
+      return;
+    }
+    await fetch(`${apiUrl}/chamados`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status })
+    });
+    setChamados(prev => prev.map(c => c.id === id ? {...c, status} : c));
+  }, [apiUrl, demoMode]);
+
+  // Contadores
+  const abertos = chamados.filter(c => c.status !== 'resolvido');
+  const cnts = { 'FÁCIL':0,'MÉDIO':0,'DIFÍCIL':0,'URGENTE':0 };
+  abertos.forEach(c => { if (cnts[c.classificacao]!==undefined) cnts[c.classificacao]++; });
+
+  // Filtros
+  const filtrados = chamados.filter(c => {
+    if (filtroClf !== 'todos' && c.classificacao !== filtroClf) return false;
+    if (filtroStatus !== 'todos' && c.status !== filtroStatus) return false;
+    if (filtroCanal !== 'todos' && c.canal !== filtroCanal) return false;
+    if (busca) {
+      const t = busca.toLowerCase();
+      return (c.remetente_nome||'').toLowerCase().includes(t) ||
+             (c.remetente_email||'').toLowerCase().includes(t) ||
+             (c.resumo||'').toLowerCase().includes(t) ||
+             (c.texto_original||'').toLowerCase().includes(t);
+    }
+    return true;
+  });
+
+  function exportarCSV() {
+    const rows = [['ID','Nome','Email/Fone','Canal','Classificação','Diagnóstico','Status','Recebido']];
+    chamados.forEach(c => rows.push([c.id,c.remetente_nome||'',c.remetente_email||c.remetente_fone||'',c.canal||'',c.classificacao,c.diagnostico||'',c.status||'aberto',c.criado_em||'']));
+    const csv  = rows.map(r=>r.join(',')).join('\n');
+    const a    = document.createElement('a');
+    a.href     = 'data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+    a.download = `chamados_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  }
+
+  if (!apiUrl && !demoMode) return <SetupModal onSave={salvarApi} onDemo={ativarDemo}/>;
+
+  return (
+    <div className="flex flex-col min-h-screen">
+
+      {/* DEMO BANNER */}
+      {demoMode && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2 flex items-center justify-center gap-2 text-xs text-amber-300">
+          <i className="bi bi-info-circle-fill"/>
+          <span>Modo demonstração — dados fictícios para visualização da interface</span>
+          <button onClick={()=>{setDemoMode(false);setChamados([]);setOnline(false);}}
+            className="ml-2 underline hover:text-amber-200 transition-colors">conectar API real</button>
+        </div>
+      )}
+
+      {/* TOPBAR */}
+      <header className="glass sticky top-0 z-40 px-6 h-14 flex items-center justify-between border-b border-white/[0.07]">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center text-white font-bold text-sm"><i className="bi bi-headset"/></div>
+          <div>
+            <div className="text-sm font-bold leading-none">Central de Chamados</div>
+            <div className="text-xs text-slate-500 font-mono leading-none mt-0.5">Google Chat · WhatsApp · Firestore</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {lastUpdate && <span className="text-xs text-slate-500 font-mono hidden sm:block">atualizado {dayjs(lastUpdate).fromNow()}</span>}
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${demoMode?'bg-amber-400/10 text-amber-400 border-amber-400/20':online?'bg-emerald-400/10 text-emerald-400 border-emerald-400/20':'bg-red-400/10 text-red-400 border-red-400/20'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${demoMode?'bg-amber-400':online?'bg-emerald-400 ping2':'bg-red-400'}`}/>
+            {demoMode?'demo':online?'ao vivo':'offline'}
+          </div>
+          <button onClick={carregar} disabled={demoMode} className="glass glass-hover px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40">
+            <i className={`bi bi-arrow-clockwise ${loading?'animate-spin':''}`}/>Atualizar
+          </button>
+          <button onClick={exportarCSV} className="glass glass-hover px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
+            <i className="bi bi-download"/>CSV
+          </button>
+          <button onClick={()=>{localStorage.removeItem(API_LS_KEY);setApiUrl('');setDemoMode(false);setChamados([]);}} className="text-slate-500 hover:text-slate-300 text-xs transition-colors">
+            <i className="bi bi-gear"/>
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 p-6 space-y-6">
+
+        {/* STATS */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {['FÁCIL','MÉDIO','DIFÍCIL','URGENTE'].map(clf => <StatCard key={clf} clf={clf} count={cnts[clf]}/>)}
+        </div>
+
+        {/* FILTROS */}
+        <div className="glass rounded-2xl p-4 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1 flex-wrap">
+            {['todos','FÁCIL','MÉDIO','DIFÍCIL','URGENTE'].map(v => {
+              const active = filtroClf === v;
+              const c = CLF[v];
+              return (
+                <button key={v} onClick={()=>setFiltroClf(v)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${active?(c?`${c.bg} ${c.color} ${c.border}`:'bg-brand-500/20 text-brand-400 border-brand-500/40'):'border-white/10 text-slate-400 hover:border-white/20'}`}>
+                  {v==='todos'?'Todos':CLF[v].label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="w-px h-5 bg-white/10 hidden sm:block"/>
+          <div className="flex items-center gap-1">
+            {['todos','aberto','andamento','resolvido'].map(v=>(
+              <button key={v} onClick={()=>setFStatus(v)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${filtroStatus===v?'bg-white/10 text-slate-200 border-white/20':'border-white/10 text-slate-500 hover:border-white/20'}`}>
+                {v==='todos'?'Todos os status':STATUS[v]?.label||v}
+              </button>
+            ))}
+          </div>
+          <div className="w-px h-5 bg-white/10 hidden sm:block"/>
+          <div className="flex items-center gap-1">
+            {['todos','google_chat','whatsapp'].map(v=>(
+              <button key={v} onClick={()=>setFCanal(v)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${filtroCanal===v?'bg-white/10 text-slate-200 border-white/20':'border-white/10 text-slate-500 hover:border-white/20'}`}>
+                {v==='todos'?'Todos canais':<><i className={`bi ${CANAL[v]?.icon} mr-1`}/>{CANAL[v]?.label}</>}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center gap-2 glass rounded-lg px-3 py-1.5">
+              <i className="bi bi-search text-slate-500 text-xs"/>
+              <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar…"
+                className="bg-transparent text-sm text-slate-200 w-36 focus:outline-none placeholder:text-slate-600"/>
+            </div>
+            <span className="text-xs font-mono text-slate-500">{filtrados.length} resultado{filtrados.length!==1?'s':''}</span>
+          </div>
+        </div>
+
+        {/* TABELA */}
+        <div className="glass rounded-2xl overflow-hidden">
+          <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Chamados</h2>
+            <span className="text-xs text-slate-500 font-mono">{chamados.length} total</span>
+          </div>
+
+          {loading && !chamados.length ? (
+            <div className="flex items-center justify-center py-20 text-slate-500 gap-3">
+              <i className="bi bi-arrow-repeat animate-spin text-lg"/>Carregando…
+            </div>
+          ) : !filtrados.length ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-600 gap-3">
+              <i className="bi bi-inbox text-4xl"/>
+              <p className="text-sm">Nenhum chamado encontrado</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/[0.06]">
+                    {['Solicitante','Resumo','Classificação','Canal','Status','Recebido'].map(h=>(
+                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...filtrados].sort((a,b)=>new Date(b.criado_em)-new Date(a.criado_em)).map(c=>(
+                    <tr key={c.id} onClick={()=>setAberto(c)}
+                      className="border-b border-white/[0.04] cursor-pointer hover:bg-white/[0.03]">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <Avatar nome={c.remetente_nome}/>
+                          <div>
+                            <div className="font-medium text-slate-200 text-sm">{c.remetente_nome||'—'}</div>
+                            <div className="text-xs text-slate-500 font-mono truncate max-w-[140px]">{c.remetente_email||c.remetente_fone||''}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="text-slate-300 text-sm truncate max-w-[220px]" title={c.resumo}>{c.resumo||'—'}</div>
+                        {c.diagnostico && <div className="text-xs text-slate-500 truncate max-w-[220px]">{c.diagnostico}</div>}
+                      </td>
+                      <td className="px-5 py-3.5"><Badge clf={c.classificacao}/></td>
+                      <td className="px-5 py-3.5"><CanalBadge canal={c.canal}/></td>
+                      <td className="px-5 py-3.5"><StatusBadge status={c.status||'aberto'}/></td>
+                      <td className="px-5 py-3.5 text-xs text-slate-500 font-mono whitespace-nowrap">{fromNow(c.criado_em)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <Modal chamado={chamadoAberto} onClose={()=>setAberto(null)} onSave={salvarStatus}/>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>
