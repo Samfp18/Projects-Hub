@@ -202,8 +202,24 @@ function Field({ label, children }) {
   return <div className="mb-4"><div className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{label}</div>{children}</div>;
 }
 
+// ── DADOS DE DEMONSTRAÇÃO ─────────────────────────────────────────────
+const minAgo = m => new Date(Date.now() - m*60000).toISOString();
+
+const DEMO_CHAMADOS = [
+  { id:'d1', remetente_nome:'Ana Rodrigues',  remetente_email:'ana.rodrigues@empresa.com',  canal:'google_chat', classificacao:'URGENTE', status:'andamento', resumo:'Servidor de produção fora do ar, clientes sem acesso',        diagnostico:'🖥️ Indisponibilidade de servidor', texto_original:'O servidor principal caiu! Ninguém consegue logar no sistema. URGENTE, estamos perdendo vendas!', motivo:'Sistema crítico afetando produção e receita diretamente.', proximos_passos:'Acionar equipe de infraestrutura imediatamente e verificar logs do servidor.', tempo_estimado:'30 minutos', criado_em:minAgo(4) },
+  { id:'d2', remetente_nome:'Lena Fischer',   remetente_email:'lena.fischer@empresa.com',   canal:'google_chat', classificacao:'URGENTE', status:'aberto',    resumo:'Possível vazamento de dados entre contas de clientes',      diagnostico:'⚠️ Erro / Falha no sistema',       texto_original:'Recebi 3 reclamações de clientes dizendo que conseguem ver dados de outros usuários no portal.', motivo:'Possível brecha de segurança com impacto direto em privacidade de dados (LGPD).', proximos_passos:'Suspender acesso ao portal, acionar equipe de segurança e iniciar investigação.', tempo_estimado:'Imediato', criado_em:minAgo(9) },
+  { id:'d3', remetente_nome:'Carlos Menezes', remetente_fone:'+55 48 99812-4471',           canal:'whatsapp',    classificacao:'DIFÍCIL', status:'aberto',    resumo:'Integração com gateway de pagamentos retornando erro 500', diagnostico:'⚠️ Erro / Falha no sistema',       texto_original:'Nossa integração com o gateway de pagamentos está falhando. Código de erro 500. Tentei reiniciar mas não resolveu.', motivo:'Falha em sistema de pagamentos requer análise técnica especializada.', proximos_passos:'Verificar logs da API, contatar suporte do gateway e testar em homologação.', tempo_estimado:'4 horas', criado_em:minAgo(23) },
+  { id:'d4', remetente_nome:'Rafael Souza',   remetente_email:'rafael.souza@empresa.com',   canal:'google_chat', classificacao:'DIFÍCIL', status:'aberto',    resumo:'Migração de banco causou inconsistência em registros',     diagnostico:'💾 Perda de dados / Backup',       texto_original:'Após a migração do banco, alguns pedidos antigos aparecem com status errado. Afeta relatórios históricos.', motivo:'Problema de integridade de dados pós-migração, exige análise cuidadosa.', proximos_passos:'Fazer backup imediato, mapear registros afetados e criar script de correção.', tempo_estimado:'1 dia', criado_em:minAgo(48) },
+  { id:'d5', remetente_nome:'Priya Sharma',   remetente_email:'priya.sharma@empresa.com',   canal:'google_chat', classificacao:'MÉDIO',   status:'aberto',    resumo:'Relatório mensal demorando mais de 10 minutos para gerar',  diagnostico:'🐢 Lentidão / Performance',        texto_original:'O relatório de vendas do mês está muito lento, mais de 10 minutos. Antes era questão de segundos.', motivo:'Problema de performance que impacta produtividade, mas não bloqueia operação.', proximos_passos:'Verificar queries lentas no banco de dados e analisar índices.', tempo_estimado:'2 horas', criado_em:minAgo(37) },
+  { id:'d6', remetente_nome:'João Pereira',   remetente_fone:'+55 11 98765-0022',           canal:'whatsapp',    classificacao:'MÉDIO',   status:'andamento', resumo:'Dashboard não carrega gráficos no Safari',                  diagnostico:'⚠️ Erro / Falha no sistema',       texto_original:'Os gráficos do dashboard não aparecem no Safari. No Chrome funciona normal.', motivo:'Bug de compatibilidade de navegador afeta parte dos usuários.', proximos_passos:'Testar no Safari DevTools, verificar polyfills e corrigir CSS/JS incompatível.', tempo_estimado:'3 horas', criado_em:minAgo(72) },
+  { id:'d7', remetente_nome:'Bruno Oliveira', remetente_email:'bruno.oliveira@empresa.com', canal:'google_chat', classificacao:'FÁCIL',   status:'resolvido', resumo:'Conta bloqueada após múltiplas tentativas de senha',        diagnostico:'🔑 Acesso / Autenticação',         texto_original:'Tentei trocar minha senha várias vezes e acabou bloqueando minha conta. Como faço para desbloquear?', motivo:'Procedimento padrão de suporte, resolução simples pelo portal admin.', proximos_passos:'Acessar painel admin, desbloquear conta e enviar link de redefinição.', tempo_estimado:'10 minutos', criado_em:minAgo(54) },
+  { id:'d8', remetente_nome:'Mariana Costa',  remetente_fone:'+55 21 99433-1187',           canal:'whatsapp',    classificacao:'FÁCIL',   status:'resolvido', resumo:'Dúvida sobre exportação de dados para Excel',               diagnostico:'',                                 texto_original:'Preciso exportar a lista de clientes para Excel mas não achei essa opção no sistema.', motivo:'Dúvida de uso do sistema, respondida com documentação existente.', proximos_passos:'Enviar link do manual do usuário, seção 4.2 — Exportação de dados.', tempo_estimado:'5 minutos', criado_em:minAgo(95) },
+  { id:'d9', remetente_nome:'Diego Almeida',  remetente_email:'diego.almeida@empresa.com',  canal:'google_chat', classificacao:'FÁCIL',   status:'aberto',    resumo:'Impressora do setor financeiro sem responder',              diagnostico:'🖨️ Impressão / Periféricos',      texto_original:'A impressora do financeiro parou de imprimir. A fila fica travada e nada sai.', motivo:'Problema comum de fila de impressão, resolução rápida.', proximos_passos:'Limpar fila de impressão e reiniciar spooler no servidor.', tempo_estimado:'15 minutos', criado_em:minAgo(18) },
+  { id:'d10',remetente_nome:'Camila Torres',  remetente_email:'camila.torres@empresa.com',  canal:'google_chat', classificacao:'MÉDIO',   status:'aberto',    resumo:'VPN desconectando a cada 10 minutos em home office',        diagnostico:'🌐 Rede / Conectividade',          texto_original:'Minha VPN cai a cada 10 minutos mais ou menos. Trabalho de casa e isso está atrapalhando muito.', motivo:'Instabilidade de conexão VPN afeta produtividade do usuário remoto.', proximos_passos:'Verificar logs do concentrador VPN e testar perfil de conexão do usuário.', tempo_estimado:'2 horas', criado_em:minAgo(140) },
+];
+
 // ── SETUP MODAL ───────────────────────────────────────────────────────
-function SetupModal({ onSave }) {
+function SetupModal({ onSave, onDemo }) {
   const [url, setUrl] = useState('');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -211,14 +227,21 @@ function SetupModal({ onSave }) {
         <div className="w-14 h-14 bg-brand-500/20 rounded-2xl flex items-center justify-center mx-auto mb-5">
           <i className="bi bi-plug-fill text-2xl text-brand-500"/>
         </div>
-        <h2 className="text-xl font-bold mb-2">Conectar à API</h2>
-        <p className="text-sm text-slate-400 mb-6">Cole a URL da sua Cloud Function para carregar os chamados do Firestore.</p>
+        <h2 className="text-xl font-bold mb-2">Central de Chamados</h2>
+        <p className="text-sm text-slate-400 mb-6">Conecte-se à sua Cloud Function ou explore a interface com dados de demonstração.</p>
         <input value={url} onChange={e=>setUrl(e.target.value)}
-          placeholder="https://southamerica-east1-…cloudfunctions.net/webhook_chamados"
-          className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-slate-200 focus:outline-none focus:border-brand-500 mb-4"/>
+          placeholder="https://…cloudfunctions.net/webhook_chamados"
+          className="w-full bg-white/[0.06] border border-white/10 rounded-xl px-4 py-3 text-sm font-mono text-slate-200 focus:outline-none focus:border-brand-500 mb-3"/>
         <button onClick={()=>url.trim()&&onSave(url.trim())}
-          className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 font-semibold text-white transition-colors">
+          className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 font-semibold text-white transition-colors mb-3">
           <i className="bi bi-lightning-fill mr-2"/>Conectar
+        </button>
+        <div className="flex items-center gap-3 my-4">
+          <div className="flex-1 h-px bg-white/10"/><span className="text-xs text-slate-600">ou</span><div className="flex-1 h-px bg-white/10"/>
+        </div>
+        <button onClick={onDemo}
+          className="w-full py-3 rounded-xl border border-white/15 hover:border-white/30 hover:bg-white/[0.04] font-medium text-slate-300 transition-colors">
+          <i className="bi bi-eye mr-2"/>Ver demonstração
         </button>
       </div>
     </div>
@@ -228,6 +251,7 @@ function SetupModal({ onSave }) {
 // ── APP PRINCIPAL ─────────────────────────────────────────────────────
 function App() {
   const [apiUrl, setApiUrl]         = useState(() => localStorage.getItem(API_LS_KEY) || '');
+  const [demoMode, setDemoMode]     = useState(false);
   const [chamados, setChamados]     = useState([]);
   const [filtroClf, setFiltroClf]   = useState('todos');
   const [filtroStatus, setFStatus]  = useState('todos');
@@ -242,11 +266,19 @@ function App() {
   const salvarApi = useCallback((url) => {
     const u = url.replace(/\/$/, '');
     setApiUrl(u);
+    setDemoMode(false);
     localStorage.setItem(API_LS_KEY, u);
   }, []);
 
+  const ativarDemo = useCallback(() => {
+    setDemoMode(true);
+    setChamados(DEMO_CHAMADOS);
+    setOnline(true);
+    setLastUpdate(new Date());
+  }, []);
+
   const carregar = useCallback(async () => {
-    if (!apiUrl) return;
+    if (!apiUrl || demoMode) return;
     try {
       const res  = await fetch(`${apiUrl}/chamados?limite=200`);
       if (!res.ok) throw new Error();
@@ -257,24 +289,28 @@ function App() {
     } catch {
       setOnline(false);
     }
-  }, [apiUrl]);
+  }, [apiUrl, demoMode]);
 
   useEffect(() => {
-    if (!apiUrl) return;
+    if (!apiUrl || demoMode) return;
     setLoading(true);
     carregar().finally(() => setLoading(false));
     intervalRef.current = setInterval(carregar, 30000);
     return () => clearInterval(intervalRef.current);
-  }, [apiUrl, carregar]);
+  }, [apiUrl, demoMode, carregar]);
 
   const salvarStatus = useCallback(async (id, status) => {
+    if (demoMode) {
+      setChamados(prev => prev.map(c => c.id === id ? {...c, status} : c));
+      return;
+    }
     await fetch(`${apiUrl}/chamados`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status })
     });
     setChamados(prev => prev.map(c => c.id === id ? {...c, status} : c));
-  }, [apiUrl]);
+  }, [apiUrl, demoMode]);
 
   // Contadores
   const abertos = chamados.filter(c => c.status !== 'resolvido');
@@ -306,10 +342,20 @@ function App() {
     a.click();
   }
 
-  if (!apiUrl) return <SetupModal onSave={salvarApi}/>;
+  if (!apiUrl && !demoMode) return <SetupModal onSave={salvarApi} onDemo={ativarDemo}/>;
 
   return (
     <div className="flex flex-col min-h-screen">
+
+      {/* DEMO BANNER */}
+      {demoMode && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-2 flex items-center justify-center gap-2 text-xs text-amber-300">
+          <i className="bi bi-info-circle-fill"/>
+          <span>Modo demonstração — dados fictícios para visualização da interface</span>
+          <button onClick={()=>{setDemoMode(false);setChamados([]);setOnline(false);}}
+            className="ml-2 underline hover:text-amber-200 transition-colors">conectar API real</button>
+        </div>
+      )}
 
       {/* TOPBAR */}
       <header className="glass sticky top-0 z-40 px-6 h-14 flex items-center justify-between border-b border-white/[0.07]">
@@ -322,17 +368,17 @@ function App() {
         </div>
         <div className="flex items-center gap-3">
           {lastUpdate && <span className="text-xs text-slate-500 font-mono hidden sm:block">atualizado {dayjs(lastUpdate).fromNow()}</span>}
-          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${online?'bg-emerald-400/10 text-emerald-400 border-emerald-400/20':'bg-red-400/10 text-red-400 border-red-400/20'}`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${online?'bg-emerald-400 ping2':'bg-red-400'}`}/>
-            {online?'ao vivo':'offline'}
+          <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${demoMode?'bg-amber-400/10 text-amber-400 border-amber-400/20':online?'bg-emerald-400/10 text-emerald-400 border-emerald-400/20':'bg-red-400/10 text-red-400 border-red-400/20'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${demoMode?'bg-amber-400':online?'bg-emerald-400 ping2':'bg-red-400'}`}/>
+            {demoMode?'demo':online?'ao vivo':'offline'}
           </div>
-          <button onClick={carregar} className="glass glass-hover px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
+          <button onClick={carregar} disabled={demoMode} className="glass glass-hover px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-40">
             <i className={`bi bi-arrow-clockwise ${loading?'animate-spin':''}`}/>Atualizar
           </button>
           <button onClick={exportarCSV} className="glass glass-hover px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
             <i className="bi bi-download"/>CSV
           </button>
-          <button onClick={()=>{localStorage.removeItem(API_LS_KEY);setApiUrl('');}} className="text-slate-500 hover:text-slate-300 text-xs transition-colors">
+          <button onClick={()=>{localStorage.removeItem(API_LS_KEY);setApiUrl('');setDemoMode(false);setChamados([]);}} className="text-slate-500 hover:text-slate-300 text-xs transition-colors">
             <i className="bi bi-gear"/>
           </button>
         </div>
