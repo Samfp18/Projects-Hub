@@ -2,6 +2,8 @@
 
 > Verificador e gerador de senhas seguras — 100% client-side, sem backend, sem coleta de dados.
 
+**🔗 [Testar ao vivo](https://cofre-senha.netlify.app/)**
+
 Um dossiê interativo para analisar a força de uma senha (entropia, padrões
 previsíveis, verificação contra vazamentos conhecidos via [Have I Been
 Pwned](https://haveibeenpwned.com/)) e para gerar novas senhas
