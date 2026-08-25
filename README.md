@@ -14,6 +14,7 @@ Este repositório tem como foco:
 - ⚙️ **Scripts de Otimização (Python):** automação de tarefas e melhorias de desempenho no sistema operacional Windows, como limpeza de cache, desinstalação em lote, ajustes no registro e muito mais.
 -  🧩 Extensões de navegador desenvolvidas por mim
 - 📂 **Portfólio Técnico:** centralizar e versionar meus códigos de forma organizada e acessível para futuras parcerias ou oportunidades profissionais.
+- Aplicações construidas por mim misturando códigos e conceitos de segurança da informação 
 
 ---
 
