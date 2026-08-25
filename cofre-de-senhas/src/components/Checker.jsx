@@ -17,7 +17,11 @@ export default function Checker() {
       const result = await checkPwned(password);
       setPwnedState({ status: "done", ...result });
     } catch (err) {
-      setPwnedState({ status: "error" });
+      if (err.message === "RATE_LIMITED") {
+        setPwnedState({ status: "rate_limited" });
+      } else {
+        setPwnedState({ status: "error" });
+      }
     }
   }
 
@@ -105,6 +109,11 @@ export default function Checker() {
                 Não foi possível consultar agora. Tente novamente mais tarde.
               </p>
             )}
+            {pwnedState.status === "rate_limited" && (
+              <p className="font-mono text-sm text-hazard">
+                Muitas consultas em pouco tempo. Aguarde alguns minutos e tente de novo.
+              </p>
+            )}
             {pwnedState.status === "done" && pwnedState.pwned && (
               <p className="font-mono text-sm text-danger">
                 ⚠ Encontrada em {pwnedState.count.toLocaleString("pt-BR")} vazamento(s) conhecido(s). Troque esta senha.
@@ -117,7 +126,9 @@ export default function Checker() {
             )}
             <p className="font-body text-xs text-paper-dim mt-3">
               Apenas os 5 primeiros caracteres do hash SHA-1 da senha são enviados
-              (k-anonimato). A senha em si nunca sai do seu navegador.
+              (k-anonimato), para o nosso próprio servidor, que repassa a
+              consulta ao Have I Been Pwned. A senha em si nunca sai do seu
+              navegador.
             </p>
           </div>
         </>
