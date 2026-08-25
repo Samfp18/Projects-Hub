@@ -48,6 +48,21 @@ npm test
 Inclui testes de integração reais via `supertest` (rotas HTTP de verdade,
 incluindo o rate limiter estourando o limite configurado).
 
+## Retenção de dados
+
+Os documentos em `pwned_checks` e `rate_limit_events` recebem um campo
+`expiresAt` (90 dias no futuro). Isso sozinho não apaga nada — é preciso
+ativar a política de TTL do Firestore apontando pra esse campo:
+
+1. No [Firebase Console](https://console.firebase.google.com/) → Firestore
+   Database → aba "TTL" (ou via `gcloud`: `gcloud firestore fields ttls
+   update expiresAt --collection-group=pwned_checks --enable-ttl`,
+   repetindo para `rate_limit_events`)
+2. Depois de ativado, o próprio banco remove os documentos vencidos — sem
+   custo de leitura/escrita adicional pra isso.
+
+Veja [PRIVACY.md](../PRIVACY.md) na raiz do projeto para a política completa.
+
 ## Deploy
 
 Qualquer host que rode um processo Node contínuo funciona: Railway (mais

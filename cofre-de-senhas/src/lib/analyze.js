@@ -1,39 +1,23 @@
-// Análise de força de senha sem depender de bibliotecas pesadas (tipo zxcvbn).
-// Tudo roda no navegador do usuário — nenhuma senha é enviada para lugar nenhum
-// além do endpoint k-anonimato do Have I Been Pwned (ver pwnedCheck.js).
+// Análise de força de senha usando zxcvbn-ts — o mesmo algoritmo (mantido
+// e modernizado a partir do zxcvbn original do Dropbox) usado por produtos
+// reais de segurança. Isso substitui a heurística de entropia caseira que
+// este projeto usava antes: zxcvbn modela ataques de dicionário, padrões
+// de teclado, datas, l33tspeak e variações de maiúsculas de forma muito
+// mais realista do que um cálculo de entropia por conjunto de caracteres.
+//
+// Os dicionários do zxcvbn são grandes (milhares de palavras), então o
+// carregamento é feito sob demanda via import() dinâmico — o código só é
+// baixado quando alguém de fato analisa uma senha, não no carregamento
+// inicial da página. Isso evita inflar o bundle principal em ~1MB à toa.
 
-const COMMON_PASSWORDS = new Set([
-  "123456", "123456789", "password", "senha", "senha123", "12345678",
-  "qwerty", "abc123", "111111", "123123", "admin", "letmein", "welcome",
-  "iloveyou", "monkey", "dragon", "football", "master", "brasil", "brasil123",
-  "vasco", "flamengo", "corinthians", "palmeiras", "amor", "12345",
-]);
+const BR_SPECIFIC_TERMS = [
+  "vasco", "flamengo", "corinthians", "palmeiras", "gremio", "internacional",
+  "saopaulo", "santos", "cruzeiro", "atletico", "brasil123", "brasil2024",
+  "brasil2025", "brasil2026",
+];
 
-const KEYBOARD_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890"];
-
-function hasSequentialRun(pwLower, minRun = 4) {
-  const seqSources = [...KEYBOARD_ROWS, "abcdefghijklmnopqrstuvwxyz"];
-  for (const row of seqSources) {
-    for (let i = 0; i <= row.length - minRun; i++) {
-      const chunk = row.slice(i, i + minRun);
-      const chunkRev = [...chunk].reverse().join("");
-      if (pwLower.includes(chunk) || pwLower.includes(chunkRev)) return true;
-    }
-  }
-  return false;
-}
-
-function hasRepeatedChars(pw, minRun = 4) {
-  return new RegExp(`(.)\\1{${minRun - 1},}`).test(pw);
-}
-
-function charsetSize(pw) {
-  let size = 0;
-  if (/[a-z]/.test(pw)) size += 26;
-  if (/[A-Z]/.test(pw)) size += 26;
-  if (/[0-9]/.test(pw)) size += 10;
-  if (/[^a-zA-Z0-9]/.test(pw)) size += 33;
-  return size || 1;
+function hasBrSpecificTerm(passwordLower) {
+  return BR_SPECIFIC_TERMS.some((term) => passwordLower.includes(term));
 }
 
 function formatCrackTime(seconds) {
@@ -45,7 +29,7 @@ function formatCrackTime(seconds) {
     ["minuto(s)", 60],
     ["segundo(s)", 1],
   ];
-  if (seconds < 1) return "instantâneo";
+  if (!Number.isFinite(seconds) || seconds < 1) return seconds >= 1e12 ? "mais de um século" : "instantâneo";
   for (const [label, unitSeconds] of units) {
     if (seconds >= unitSeconds) {
       const value = seconds / unitSeconds;
@@ -56,11 +40,40 @@ function formatCrackTime(seconds) {
   return "instantâneo";
 }
 
+function scoreToLabel(score) {
+  if (score <= 1) return "FRACA";
+  if (score === 2) return "REGULAR";
+  if (score === 3) return "FORTE";
+  return "BLINDADA";
+}
+
+let zxcvbnInstancePromise = null;
+
+function getZxcvbnInstance() {
+  if (!zxcvbnInstancePromise) {
+    zxcvbnInstancePromise = Promise.all([
+      import("@zxcvbn-ts/core"),
+      import("@zxcvbn-ts/language-common"),
+      import("@zxcvbn-ts/language-pt-br"),
+    ]).then(([core, common, ptBr]) => {
+      return new core.ZxcvbnFactory({
+        dictionary: {
+          ...common.dictionary,
+          ...ptBr.dictionary,
+        },
+        graphs: common.adjacencyGraphs,
+        translations: ptBr.translations,
+      });
+    });
+  }
+  return zxcvbnInstancePromise;
+}
+
 /**
- * Analisa uma senha e retorna entropia estimada, veredito, tempo de quebra
- * estimado (offline, GPU moderna ~10^10 tentativas/s) e uma lista de motivos.
+ * Analisa uma senha usando zxcvbn-ts. Assíncrona de propósito: carrega o
+ * motor de análise sob demanda (ver comentário no topo do arquivo).
  */
-export function analyzePassword(password) {
+export async function analyzePassword(password) {
   if (!password) {
     return {
       score: 0,
@@ -71,64 +84,29 @@ export function analyzePassword(password) {
     };
   }
 
-  const pwLower = password.toLowerCase();
+  const instance = await getZxcvbnInstance();
+  const result = instance.check(password);
+  const entropyBits = Math.round(result.guessesLog10 * Math.log2(10) * 10) / 10;
+  const crackSeconds = result.crackTimes.offlineFastHashingXPerSecond.seconds;
+
   const reasons = [];
-  let penaltyBits = 0;
-
-  const size = charsetSize(password);
-  let entropyBits = password.length * Math.log2(size);
-
-  if (COMMON_PASSWORDS.has(pwLower)) {
-    reasons.push("Está entre as senhas mais usadas do mundo");
-    entropyBits = Math.min(entropyBits, 8);
+  if (result.feedback.warning) reasons.push(result.feedback.warning);
+  for (const suggestion of result.feedback.suggestions) {
+    if (!reasons.includes(suggestion)) reasons.push(suggestion);
   }
 
-  if (hasSequentialRun(pwLower)) {
-    reasons.push("Contém sequência previsível (teclado ou alfabeto)");
-    penaltyBits += 12;
-  }
-
-  if (hasRepeatedChars(password)) {
-    reasons.push("Contém caracteres repetidos em excesso");
-    penaltyBits += 10;
-  }
-
-  if (/^\d+$/.test(password)) {
-    reasons.push("Usa apenas números");
-    penaltyBits += 6;
-  }
-
-  if (/(19|20)\d{2}/.test(password)) {
-    reasons.push("Parece conter um ano (datas são fáceis de adivinhar)");
-    penaltyBits += 6;
-  }
-
-  entropyBits = Math.max(0, entropyBits - penaltyBits);
-
-  // GPU offline moderna: ~10^10 tentativas/segundo (estimativa conservadora
-  // para hashes rápidos; hashes lentos como bcrypt seriam muito mais resistentes).
-  const guessesPerSecond = 1e10;
-  const crackSeconds = Math.pow(2, entropyBits) / guessesPerSecond;
-
-  let score, label;
-  if (password.length < 8 || entropyBits < 28) {
-    score = 1; label = "FRACA";
-  } else if (entropyBits < 45) {
-    score = 2; label = "REGULAR";
-  } else if (entropyBits < 65) {
-    score = 3; label = "FORTE";
-  } else {
-    score = 4; label = "BLINDADA";
+  if (hasBrSpecificTerm(password.toLowerCase())) {
+    reasons.push("Contém termo popular no Brasil (ex: time de futebol) — fácil de adivinhar em ataques direcionados a usuários brasileiros");
   }
 
   if (reasons.length === 0) {
-    reasons.push("Nenhum padrão óbvio identificado");
+    reasons.push("Nenhum padrão óbvio identificado pela análise");
   }
 
   return {
-    score,
-    label,
-    entropyBits: Math.round(entropyBits * 10) / 10,
+    score: result.score,
+    label: scoreToLabel(result.score),
+    entropyBits,
     crackTime: formatCrackTime(crackSeconds),
     reasons,
   };

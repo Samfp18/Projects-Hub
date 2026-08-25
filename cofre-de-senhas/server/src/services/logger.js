@@ -3,8 +3,22 @@
 // candidatos o HIBP retornou para aquele prefixo, hash do IP (ver hashIp.js)
 // e timestamp. Suficiente para monitorar uso e abuso, insuficiente para
 // identificar quem consultou o quê.
+//
+// Cada documento recebe um campo `expiresAt` 90 dias no futuro. Isso, por
+// si só, não apaga nada — é preciso configurar uma política de TTL no
+// Firestore apontando pra esse campo (Firebase Console > Firestore >
+// política de TTL, ou `gcloud firestore fields ttls update`). Uma vez
+// configurado, o próprio banco remove os documentos expirados sem custo
+// de leitura/escrita adicional. Ver PRIVACY.md para a política completa.
 
 import { getDb, FieldValue } from "./firestore.js";
+
+const LOG_RETENTION_DAYS = 90;
+
+export function computeExpiresAt() {
+  const ms = LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  return new Date(Date.now() + ms);
+}
 
 export async function logCheck({ ipHash, prefix, candidatesReturned }) {
   const db = getDb();
@@ -19,6 +33,7 @@ export async function logCheck({ ipHash, prefix, candidatesReturned }) {
       prefix,
       candidatesReturned,
       timestamp: FieldValue.serverTimestamp(),
+      expiresAt: computeExpiresAt(),
     });
 
     // Contador agregado num único documento — lemos ele em /api/stats sem
@@ -45,6 +60,7 @@ export async function logRateLimitHit({ ipHash }) {
     await db.collection("rate_limit_events").add({
       ipHash,
       timestamp: FieldValue.serverTimestamp(),
+      expiresAt: computeExpiresAt(),
     });
     await db.collection("stats").doc("summary").set(
       { totalRateLimited: FieldValue.increment(1) },

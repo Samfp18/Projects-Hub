@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { analyzePassword } from "../lib/analyze";
 import { checkPwned } from "../lib/pwnedCheck";
 import Stamp from "./Stamp";
@@ -8,7 +8,17 @@ export default function Checker() {
   const [reveal, setReveal] = useState(false);
   const [pwnedState, setPwnedState] = useState({ status: "idle" }); // idle | loading | done | error
 
-  const analysis = useMemo(() => analyzePassword(password), [password]);
+  const [analysis, setAnalysis] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    analyzePassword(password).then((result) => {
+      if (!cancelled) setAnalysis(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [password]);
 
   async function handlePwnedCheck() {
     if (!password) return;
@@ -63,7 +73,7 @@ export default function Checker() {
         </div>
       </div>
 
-      {password && (
+      {password && analysis && (
         <>
           <div className="flex flex-wrap items-center gap-6">
             <Stamp label={analysis.label} />

@@ -20,9 +20,11 @@ aleatórios criptograficamente seguro) e a diferença entre "parece seguro" e
 
 ## ✨ Funcionalidades
 
-- **Análise de força**: calcula entropia real (bits), detecta senhas comuns,
-  sequências de teclado, repetições e datas — e estima o tempo de quebra por
-  força bruta.
+- **Análise de força**: usa [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)
+  (dicionário em português brasileiro) — o mesmo tipo de algoritmo usado por
+  produtos de segurança reais, não uma heurística caseira. Modela ataques
+  de dicionário, padrões de teclado, datas, l33tspeak e variações de
+  maiúsculas, e estima o tempo de quebra por força bruta.
 - **Verificação de vazamento**: consulta a base do Have I Been Pwned usando
   o modelo de **k-anonimato**: apenas os 5 primeiros caracteres do hash
   SHA-1 da senha são enviados pela rede. A senha em texto puro nunca sai
@@ -34,6 +36,9 @@ aleatórios criptograficamente seguro) e a diferença entre "parece seguro" e
   (leetspeak configurável, capitalização aleatória, preenchimento opcional
   com caracteres aleatórios). Deixa claro na interface que essa senha é
   menos imprevisível que uma totalmente aleatória do mesmo tamanho.
+- **Mostrar/ocultar senha**: em todas as telas, a senha começa oculta por
+  padrão (útil em ambientes compartilhados ou capturas de tela) e só
+  aparece com um clique explícito em "revelar".
 - **Backend de apoio**: proxy do Have I Been Pwned com rate limiting (30
   consultas/15min por IP) e logs de segurança agregados no Firestore — sem
   nunca armazenar senha, hash completo ou IP em texto puro.
@@ -66,28 +71,60 @@ O backend é opcional para rodar o projeto: se `FIREBASE_SERVICE_ACCOUNT` não
 estiver configurada, ele funciona normalmente e só deixa de persistir logs
 (cai para `console.log`).
 
+**Sobre inspecionar o código do frontend:** não existe forma de impedir isso
+de verdade — o navegador precisa baixar o código pra executá-lo, então
+`Ctrl+U`, DevTools e `curl` sempre vão conseguir ver o que foi enviado. O
+build de produção (`npm run build`) já vem minificado e sem sourcemaps, o
+que é a prática padrão da indústria para não facilitar a leitura casual —
+mas isso não é "esconder" o código, é só não fazer de graça algo que
+qualquer ferramenta de build já resolve. Bloqueios de clique direito ou de
+DevTools foram propositalmente deixados de fora: são triviais de contornar
+e, num projeto de segurança da informação, soam mais a teatro de segurança
+do que a proteção real.
+
 
 
 ## 🧠 Por que isso importa (a parte "segurança da informação" do projeto)
 
 | Conceito | Onde aparece no código |
 |---|---|
-| Entropia de senha | `src/lib/analyze.js` |
+| Modelagem de força de senha com algoritmo validado (zxcvbn-ts) | `src/lib/analyze.js` |
 | K-anonimato (privacidade em consultas) | `src/lib/pwnedCheck.js` |
 | CSPRNG vs PRNG comum | `src/lib/generate.js` |
 | Trade-off memorabilidade × entropia real (senha derivada de frase) | `src/lib/generateFromPhrase.js` |
 | Rate limiting contra abuso | `server/src/middleware/rateLimiter.js` |
 | Logs de segurança sem violar privacidade (hash de IP com salt) | `server/src/utils/hashIp.js` |
 | Observabilidade com custo de leitura O(1) em escala | `server/src/services/logger.js` |
-| Superfície de ataque mínima (sem backend) | arquitetura geral |
+| Retenção de dados com expiração automática (TTL) | `server/src/services/logger.js`, [PRIVACY.md](./PRIVACY.md) |
+| Cabeçalhos de segurança HTTP (CSP, X-Frame-Options etc.) | `netlify.toml` |
+| Superfície de ataque mínima (backend não guarda senha nenhuma) | arquitetura geral |
 
 ## 🛠️ Stack técnica
 
-- React 19 + Vite
-- Tailwind CSS 4
+- React 19 + Vite + Tailwind CSS 4
 - Web Crypto API (`crypto.subtle`, `crypto.getRandomValues`)
-- Zero dependências de terceiros para a lógica de segurança (a análise de
-  força é implementada do zero, sem `zxcvbn` ou libs equivalentes)
+- [`@zxcvbn-ts/core`](https://github.com/zxcvbn-ts/zxcvbn) para análise de
+  força de senha — o mesmo algoritmo (mantido e modernizado a partir do
+  zxcvbn original do Dropbox) usado por produtos reais, com dicionário em
+  português brasileiro. Carregado sob demanda via `import()` dinâmico, para
+  não inflar o carregamento inicial da página com os dicionários.
+- Node.js + Express no backend, com `helmet`, `cors`, `express-rate-limit`
+  e `firebase-admin`
+
+## ✅ Qualidade e operação
+
+- **Testes automatizados**: 28 no frontend + 19 no backend (`npm test` em
+  cada pacote), incluindo testes de integração HTTP reais via `supertest`
+  e um teste estatístico que valida a ausência de viés no gerador de senha.
+- **CI**: workflow do GitHub Actions (`.github/workflows/ci.yml`) rodando
+  testes, build e `npm audit` a cada push — veja a nota sobre onde colocar
+  esse arquivo no próprio workflow.
+- **Dependabot**: atualização semanal de dependências configurada
+  (`.github/dependabot.yml`).
+- **Cabeçalhos de segurança**: CSP, `X-Frame-Options`, `Referrer-Policy` e
+  `Permissions-Policy` configurados via `netlify.toml`.
+- **Privacidade**: política documentada em [PRIVACY.md](./PRIVACY.md),
+  com retenção automática de 90 dias para os logs via TTL do Firestore.
 
 ## 🚀 Rodando localmente
 
@@ -153,15 +190,34 @@ Firestore, gere uma chave de service account em *Configurações do projeto
 
 ## ⚠️ Avisos importantes
 
-- Este é um projeto **educacional**. As estimativas de "tempo de quebra"
-  assumem um cenário de ataque offline contra um hash rápido — sistemas reais
-  que usam `bcrypt`/`argon2` corretamente são muito mais resistentes.
+Este projeto nasceu como estudo e continua rotulado como tal — mas vale
+separar o que isso significa exatamente, porque nem tudo aqui é "de
+brincadeira":
+
+- **O que já é de nível de produção**: geração de senha (CSPRNG com
+  rejection sampling), verificação de vazamento (k-anonimato correto),
+  análise de força (zxcvbn-ts, o mesmo algoritmo usado por produtos reais),
+  backend com rate limiting, logs privacy-safe com retenção automática, CI
+  com testes e auditoria de dependência, e cabeçalhos de segurança HTTP.
+  Nenhum desses pontos tem uma ressalva de "não confie nisso de verdade".
+- **O que continua sendo uma estimativa, por natureza**: qualquer "tempo
+  de quebra" — inclusive o do zxcvbn — depende de um cenário assumido de
+  ataque (aqui, hash rápido offline a ~10¹⁰ tentativas/segundo). Sistemas
+  reais que usam `bcrypt`/`argon2` corretamente são ordens de magnitude
+  mais resistentes que esse cenário. Isso não é uma limitação deste
+  projeto especificamente — é assim que toda estimativa de força de senha
+  funciona, em qualquer produto.
 - A consulta ao Have I Been Pwned depende de um serviço de terceiros (agora
   repassada pelo backend próprio); se a API estiver fora do ar, a
   verificação simplesmente informa a falha.
 - O backend nunca recebe senha nem hash completo — só o prefixo de 5
   caracteres, que já é insuficiente para identificar a senha original por
   design do próprio modelo de k-anonimato.
+- O `npm audit` do backend aponta vulnerabilidades de severidade
+  **moderada** (não alta/crítica) em dependências transitivas do
+  `firebase-admin`, fora do controle direto deste projeto — o CI está
+  configurado para falhar apenas acima do nível "high", e o Dependabot
+  avisa automaticamente quando isso mudar.
 - Nunca reutilize senhas reais em ambientes de teste ou demonstrações
   públicas deste projeto.
 
@@ -180,18 +236,25 @@ password generation, hashing); a lightweight Node/Express backend acts only
 as a proxy and observability layer — it never sees the password or the full
 hash, only the 5-character k-anonymity prefix.
 
-**Features:** real entropy calculation with pattern detection (common
-passwords, keyboard sequences, repeated characters), breach checking against
-Have I Been Pwned via the k-anonymity model (through our own backend proxy),
-a CSPRNG-based generator (`crypto.getRandomValues`, with rejection sampling
-to avoid modulo bias), a phrase-to-password generator, rate limiting (30
-requests/15min per IP), and privacy-conscious security logging (IP hashed
-with salt, never stored in plaintext) via Firestore.
+**Features:** password strength analysis via [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)
+(the same class of algorithm used by real security products, with a
+Brazilian Portuguese dictionary, lazy-loaded to keep the initial bundle
+small), breach checking against Have I Been Pwned via the k-anonymity model
+(through our own backend proxy), a CSPRNG-based generator
+(`crypto.getRandomValues`, with rejection sampling to avoid modulo bias), a
+phrase-to-password generator, a show/hide toggle for generated passwords,
+rate limiting (30 requests/15min per IP), and privacy-conscious security
+logging (IP hashed with salt, 90-day automatic retention via Firestore TTL)
+— see [PRIVACY.md](./PRIVACY.md).
 
 **Stack:** React 19, Vite, Tailwind CSS 4, Web Crypto API on the frontend;
-Node.js, Express, Firestore on the backend. No third-party password-scoring
-library — the strength analysis is implemented from scratch so the security
-reasoning is fully inspectable.
+Node.js, Express, Firestore on the backend.
+
+**Quality & operations:** 28 frontend + 19 backend automated tests
+(including real HTTP integration tests and a statistical bias check on the
+generator), GitHub Actions CI running tests/build/`npm audit` on every
+push, Dependabot for weekly dependency updates, and HTTP security headers
+(CSP, X-Frame-Options, etc.) via `netlify.toml`.
 
 **Run locally:** see the Portuguese section above (`Rodando localmente`) —
 commands are the same regardless of language.
@@ -200,8 +263,10 @@ commands are the same regardless of language.
 similar; the backend needs a long-running Node process (Railway, Oracle
 Cloud Free Tier, etc.) since it isn't a static site.
 
-**Disclaimer:** educational project. Crack-time estimates assume an offline
-attack against a fast hash; real systems using `bcrypt`/`argon2` properly are
-far more resistant. Don't reuse real passwords in public demos of this tool.
+**Disclaimer:** still labeled a study/portfolio project, but most of it is
+production-grade (see the "Avisos importantes" section above for the exact
+breakdown). Crack-time estimates always assume an attack scenario (here,
+offline fast hashing) — that's inherent to any such estimate, not specific
+to this tool. Don't reuse real passwords in public demos of this tool.
 
 License: MIT.

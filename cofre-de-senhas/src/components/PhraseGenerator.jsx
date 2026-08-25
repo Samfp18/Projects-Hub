@@ -18,6 +18,7 @@ export default function PhraseGenerator() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [reveal, setReveal] = useState(false);
 
   function regenerate(currentPhrase = phrase, opts = options) {
     if (!currentPhrase.trim()) {
@@ -57,7 +58,21 @@ export default function PhraseGenerator() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  const analysis = password ? analyzePassword(password) : null;
+  const [analysis, setAnalysis] = useState(null);
+
+  useEffect(() => {
+    if (!password) {
+      setAnalysis(null);
+      return;
+    }
+    let cancelled = false;
+    analyzePassword(password).then((result) => {
+      if (!cancelled) setAnalysis(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [password]);
 
   return (
     <div className="grain bg-panel rounded-lg border border-hairline p-6 md:p-8 flex flex-col gap-6">
@@ -98,8 +113,20 @@ export default function PhraseGenerator() {
       {password && (
         <>
           <div className="bg-ink border border-hairline rounded-sm px-4 py-4 flex items-center justify-between gap-3">
-            <code className="font-mono text-lg md:text-xl text-paper break-all">{password}</code>
+            <code className="font-mono text-lg md:text-xl text-paper break-all">
+              {reveal ? password : "•".repeat(password.length)}
+            </code>
             <div className="flex gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setReveal((r) => !r)}
+                className="px-3 py-2 rounded-sm border border-hairline text-paper-dim hover:text-paper hover:border-paper-dim transition-colors font-mono text-sm"
+                aria-pressed={reveal}
+                aria-label={reveal ? "Ocultar senha" : "Revelar senha"}
+                title={reveal ? "Ocultar" : "Revelar"}
+              >
+                {reveal ? "ocultar" : "revelar"}
+              </button>
               <button
                 type="button"
                 onClick={() => regenerate()}
