@@ -16,13 +16,6 @@ Este repositório tem como foco:
 - 📂 **Portfólio Técnico:** centralizar e versionar meus códigos de forma organizada e acessível para futuras parcerias ou oportunidades profissionais.
 - Aplicações construidas por mim misturando códigos e conceitos de segurança da informação 
 
----
-
-## 📁 Estrutura do Repositório
-
-- `python/` – Scripts utilitários para manutenção e desempenho de sistemas Windows.
-- `web/` – Projetos web desenvolvidos com diferentes stacks (HTML, CSS, JS, frameworks etc.).
-- `README.md` – Você está aqui! Documento principal de introdução ao repositório.
 
 ---
 
@@ -30,7 +23,7 @@ Este repositório tem como foco:
 
 - **Python 3** (scripts e automações)
 - **HTML5 / CSS3 / JavaScript**
-- **Frameworks Web** (React, Flask, etc. – conforme aplicável aos projetos)
+- **Frameworks Web** (React, Flask,   Tailwind CSS.  workflows – conforme aplicável aos projetos)
 - **Git / GitHub** (versionamento e colaboração)
 
 ---
