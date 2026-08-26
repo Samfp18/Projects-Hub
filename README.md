@@ -23,10 +23,7 @@ Este repositório tem como foco:
 
 - **Python 3** (scripts e automações)
 - **HTML5 / CSS3 / JavaScript**
-- **Frameworks Web** (React, Flask, etc. – conforme aplicável aos projetos)
--**React**
-  **Tailwind CSS**
-  **workflow**
+- **Frameworks Web** (React, Flask,   Tailwind CSS.  workflows – conforme aplicável aos projetos)
 - **Git / GitHub** (versionamento e colaboração)
 
 ---
