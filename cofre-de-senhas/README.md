@@ -1,6 +1,6 @@
 # 🔐 Cofre de Senhas
 
-[![CI](https://github.com/Samfp18/Projects-Hub/actions/workflows/cofre-de-senhas-ci.yml/badge.svg)](https://github.com/Samfp18/Projects-Hub/actions/workflows/cofre-de-senhas-ci.yml)
+[![CI](https://github.com/Samfp18/Projects-Hub/actions/workflows/ci.yml/badge.svg)](https://github.com/Samfp18/Projects-Hub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Testes](https://img.shields.io/badge/testes-47%20passando-brightgreen)](./README.md#-qualidade-e-opera%C3%A7%C3%A3o)
 
