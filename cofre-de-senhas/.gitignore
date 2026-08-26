@@ -25,3 +25,9 @@ dist-ssr
 .env
 .env.local
 server/.env
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

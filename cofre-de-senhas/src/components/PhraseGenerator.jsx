@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { generatePasswordFromPhrase } from "../lib/generateFromPhrase";
 import { analyzePassword } from "../lib/analyze";
+import { useLanguage } from "../i18n/LanguageContext";
 import Stamp from "./Stamp";
 
 const initialOptions = {
@@ -13,6 +14,7 @@ const initialOptions = {
 };
 
 export default function PhraseGenerator() {
+  const { t } = useLanguage();
   const [phrase, setPhrase] = useState("");
   const [options, setOptions] = useState(initialOptions);
   const [password, setPassword] = useState("");
@@ -77,35 +79,28 @@ export default function PhraseGenerator() {
   return (
     <div className="grain bg-panel rounded-lg border border-hairline p-6 md:p-8 flex flex-col gap-6">
       <div>
-        <p className="font-display text-xs tracking-[0.3em] text-hazard mb-2">CASO Nº 03 — TRANSFORMAÇÃO</p>
+        <p className="font-display text-xs tracking-[0.3em] text-hazard mb-2">{t("phraseCaseLabel")}</p>
         <h2 className="font-body text-2xl md:text-3xl font-semibold text-paper">
-          Gerar a partir de uma frase
+          {t("phraseTitle")}
         </h2>
-        <p className="font-body text-sm text-paper-dim mt-2">
-          Digite algo que você lembra facilmente. Nós transformamos em algo
-          bem menos óbvio para quem tenta adivinhar.
-        </p>
+        <p className="font-body text-sm text-paper-dim mt-2">{t("phraseDescription")}</p>
       </div>
 
       <div className="flex flex-col gap-2">
         <label htmlFor="phrase-input" className="font-mono text-xs text-paper-dim uppercase tracking-wider">
-          Frase base
+          {t("phraseInputLabel")}
         </label>
         <input
           id="phrase-input"
           type="text"
           value={phrase}
           onChange={(e) => handlePhraseChange(e.target.value)}
-          placeholder="ex: meu cachorro adora praia no verão"
+          placeholder={t("phrasePlaceholder")}
           autoComplete="off"
           spellCheck="false"
           className="bg-ink border border-hairline rounded-sm px-4 py-3 font-mono text-paper placeholder:text-paper-dim/50 focus:outline-none focus:ring-2 focus:ring-hazard"
         />
-        <p className="font-body text-xs text-paper-dim">
-          Evite frases públicas ou fáceis de associar a você (letra de música,
-          citação famosa, seu próprio nome). Quanto mais pessoal e sem
-          sentido para os outros, melhor.
-        </p>
+        <p className="font-body text-xs text-paper-dim">{t("phraseHint")}</p>
       </div>
 
       {error && <p className="font-mono text-sm text-danger">{error}</p>}
@@ -122,17 +117,17 @@ export default function PhraseGenerator() {
                 onClick={() => setReveal((r) => !r)}
                 className="px-3 py-2 rounded-sm border border-hairline text-paper-dim hover:text-paper hover:border-paper-dim transition-colors font-mono text-sm"
                 aria-pressed={reveal}
-                aria-label={reveal ? "Ocultar senha" : "Revelar senha"}
-                title={reveal ? "Ocultar" : "Revelar"}
+                aria-label={reveal ? t("hide") : t("reveal")}
+                title={reveal ? t("hide") : t("reveal")}
               >
-                {reveal ? "ocultar" : "revelar"}
+                {reveal ? t("hide") : t("reveal")}
               </button>
               <button
                 type="button"
                 onClick={() => regenerate()}
                 className="px-3 py-2 rounded-sm border border-hairline text-paper-dim hover:text-paper hover:border-paper-dim transition-colors font-mono text-sm"
-                aria-label="Gerar variação nova"
-                title="Gerar variação nova"
+                aria-label={t("generateVariation")}
+                title={t("generateVariation")}
               >
                 ↻
               </button>
@@ -141,7 +136,7 @@ export default function PhraseGenerator() {
                 onClick={handleCopy}
                 className="px-3 py-2 rounded-sm border border-hazard text-hazard hover:bg-hazard hover:text-ink transition-colors font-mono text-sm"
               >
-                {copied ? "copiado ✓" : "copiar"}
+                {copied ? t("copied") : t("copy")}
               </button>
             </div>
           </div>
@@ -149,7 +144,7 @@ export default function PhraseGenerator() {
           <div className="flex flex-col gap-4">
             <div>
               <div className="flex justify-between font-mono text-xs text-paper-dim uppercase tracking-wider mb-2">
-                <label htmlFor="min-length-range">Comprimento mínimo</label>
+                <label htmlFor="min-length-range">{t("phraseMinLength")}</label>
                 <span className="text-paper">{options.length}</span>
               </div>
               <input
@@ -165,27 +160,27 @@ export default function PhraseGenerator() {
 
             <div className="grid grid-cols-2 gap-3 font-mono text-sm">
               <Checkbox
-                label="Maiúsculas aleatórias"
+                label={t("phraseRandomUpper")}
                 checked={options.useUpper}
                 onChange={(v) => updateOption("useUpper", v)}
               />
               <Checkbox
-                label="Trocar por números (a→4, e→3…)"
+                label={t("phraseDigits")}
                 checked={options.useDigits}
                 onChange={(v) => updateOption("useDigits", v)}
               />
               <Checkbox
-                label="Trocar por símbolos (a→@, s→$…)"
+                label={t("phraseSymbols")}
                 checked={options.useSymbols}
                 onChange={(v) => updateOption("useSymbols", v)}
               />
               <Checkbox
-                label="Remover espaços (senão viram '-')"
+                label={t("phraseRemoveSpaces")}
                 checked={options.removeSpaces}
                 onChange={(v) => updateOption("removeSpaces", v)}
               />
               <Checkbox
-                label="Completar com caracteres aleatórios"
+                label={t("phrasePad")}
                 checked={options.pad}
                 onChange={(v) => updateOption("pad", v)}
               />
@@ -196,19 +191,13 @@ export default function PhraseGenerator() {
             <div className="flex items-center gap-6 border-t border-hairline pt-5">
               <Stamp label={analysis.label} />
               <p className="font-mono text-sm text-paper-dim">
-                {analysis.entropyBits} bits · quebra estimada em {analysis.crackTime}
+                {analysis.entropyBits} bits · {analysis.crackTime}
               </p>
             </div>
           )}
 
           {!options.pad && (
-            <p className="font-body text-xs text-hazard">
-              ⚠ Sem preenchimento aleatório, esta senha depende inteiramente
-              da frase escolhida — se alguém souber ou adivinhar a frase, a
-              senha cai junto. A estimativa de bits acima assume caracteres
-              aleatórios, não uma frase real, e por isso é otimista demais
-              para este caso.
-            </p>
+            <p className="font-body text-xs text-hazard">{t("phraseNoPadWarning")}</p>
           )}
         </>
       )}

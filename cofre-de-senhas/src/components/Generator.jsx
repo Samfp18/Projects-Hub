@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { generatePassword } from "../lib/generate";
 import { analyzePassword } from "../lib/analyze";
+import { useLanguage } from "../i18n/LanguageContext";
 import Stamp from "./Stamp";
 
 const initialOptions = {
@@ -13,6 +14,7 @@ const initialOptions = {
 };
 
 export default function Generator() {
+  const { t } = useLanguage();
   const [options, setOptions] = useState(initialOptions);
   const [password, setPassword] = useState("");
   const [copied, setCopied] = useState(false);
@@ -63,9 +65,9 @@ export default function Generator() {
   return (
     <div className="grain bg-panel rounded-lg border border-hairline p-6 md:p-8 flex flex-col gap-6">
       <div>
-        <p className="font-display text-xs tracking-[0.3em] text-hazard mb-2">CASO Nº 02 — EMISSÃO</p>
+        <p className="font-display text-xs tracking-[0.3em] text-hazard mb-2">{t("generatorCaseLabel")}</p>
         <h2 className="font-body text-2xl md:text-3xl font-semibold text-paper">
-          Gerar senha nova
+          {t("generatorTitle")}
         </h2>
       </div>
 
@@ -79,17 +81,17 @@ export default function Generator() {
             onClick={() => setReveal((r) => !r)}
             className="px-3 py-2 rounded-sm border border-hairline text-paper-dim hover:text-paper hover:border-paper-dim transition-colors font-mono text-sm"
             aria-pressed={reveal}
-            aria-label={reveal ? "Ocultar senha" : "Revelar senha"}
-            title={reveal ? "Ocultar" : "Revelar"}
+            aria-label={reveal ? t("hide") : t("reveal")}
+            title={reveal ? t("hide") : t("reveal")}
           >
-            {reveal ? "ocultar" : "revelar"}
+            {reveal ? t("hide") : t("reveal")}
           </button>
           <button
             type="button"
             onClick={() => regenerate()}
             className="px-3 py-2 rounded-sm border border-hairline text-paper-dim hover:text-paper hover:border-paper-dim transition-colors font-mono text-sm"
-            aria-label="Gerar nova senha"
-            title="Gerar nova"
+            aria-label={t("regenerate")}
+            title={t("regenerate")}
           >
             ↻
           </button>
@@ -98,7 +100,7 @@ export default function Generator() {
             onClick={handleCopy}
             className="px-3 py-2 rounded-sm border border-hazard text-hazard hover:bg-hazard hover:text-ink transition-colors font-mono text-sm"
           >
-            {copied ? "copiado ✓" : "copiar"}
+            {copied ? t("copied") : t("copy")}
           </button>
         </div>
       </div>
@@ -106,7 +108,7 @@ export default function Generator() {
       <div className="flex flex-col gap-4">
         <div>
           <div className="flex justify-between font-mono text-xs text-paper-dim uppercase tracking-wider mb-2">
-            <label htmlFor="length-range">Comprimento</label>
+            <label htmlFor="length-range">{t("lengthLabel")}</label>
             <span className="text-paper">{options.length}</span>
           </div>
           <input
@@ -121,12 +123,12 @@ export default function Generator() {
         </div>
 
         <div className="grid grid-cols-2 gap-3 font-mono text-sm">
-          <Checkbox label="a-z" checked={options.useLower} onChange={(v) => updateOption("useLower", v)} />
-          <Checkbox label="A-Z" checked={options.useUpper} onChange={(v) => updateOption("useUpper", v)} />
-          <Checkbox label="0-9" checked={options.useDigits} onChange={(v) => updateOption("useDigits", v)} />
-          <Checkbox label="símbolos (!@#…)" checked={options.useSymbols} onChange={(v) => updateOption("useSymbols", v)} />
+          <Checkbox label={t("optionLower")} checked={options.useLower} onChange={(v) => updateOption("useLower", v)} />
+          <Checkbox label={t("optionUpper")} checked={options.useUpper} onChange={(v) => updateOption("useUpper", v)} />
+          <Checkbox label={t("optionDigits")} checked={options.useDigits} onChange={(v) => updateOption("useDigits", v)} />
+          <Checkbox label={t("optionSymbols")} checked={options.useSymbols} onChange={(v) => updateOption("useSymbols", v)} />
           <Checkbox
-            label="excluir ambíguos (Il1O0)"
+            label={t("optionExcludeAmbiguous")}
             checked={options.excludeAmbiguous}
             onChange={(v) => updateOption("excludeAmbiguous", v)}
           />
@@ -137,7 +139,7 @@ export default function Generator() {
         <div className="flex items-center gap-6 border-t border-hairline pt-5">
           <Stamp label={analysis.label} />
           <p className="font-mono text-sm text-paper-dim">
-            {analysis.entropyBits} bits · quebra em {analysis.crackTime}
+            {analysis.entropyBits} bits · {analysis.crackTime}
           </p>
         </div>
       )}

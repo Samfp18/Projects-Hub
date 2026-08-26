@@ -1,5 +1,9 @@
 # 🔐 Cofre de Senhas
 
+[![CI](https://github.com/Samfp18/Projects-Hub/actions/workflows/cofre-de-senhas-ci.yml/badge.svg)](https://github.com/Samfp18/Projects-Hub/actions/workflows/cofre-de-senhas-ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Testes](https://img.shields.io/badge/testes-47%20passando-brightgreen)](./README.md#-qualidade-e-opera%C3%A7%C3%A3o)
+
 > Verificador e gerador de senhas seguras. Frontend 100% client-side; um
 > backend leve atua só como proxy de rede e observabilidade — nunca vê
 > senha, hash completo, nem armazena nada sensível.
@@ -42,6 +46,8 @@ aleatórios criptograficamente seguro) e a diferença entre "parece seguro" e
 - **Backend de apoio**: proxy do Have I Been Pwned com rate limiting (30
   consultas/15min por IP) e logs de segurança agregados no Firestore — sem
   nunca armazenar senha, hash completo ou IP em texto puro.
+- **Interface bilíngue**: alterna entre português e inglês com um clique,
+  sem recarregar a página.
 
 ## 🏗️ Arquitetura
 
@@ -97,6 +103,10 @@ do que a proteção real.
 | Observabilidade com custo de leitura O(1) em escala | `server/src/services/logger.js` |
 | Retenção de dados com expiração automática (TTL) | `server/src/services/logger.js`, [PRIVACY.md](./PRIVACY.md) |
 | Cabeçalhos de segurança HTTP (CSP, X-Frame-Options etc.) | `netlify.toml` |
+| Escalabilidade horizontal do rate limiting (Redis opcional) | `server/src/services/redis.js` |
+| Escaneamento de segredos vazados a cada push | `.github/workflows/ci.yml` (job `secret-scan`) |
+| Modelagem de ameaças documentada | [THREAT_MODEL.md](./THREAT_MODEL.md) |
+| Política de divulgação responsável de vulnerabilidades | [SECURITY.md](./SECURITY.md) |
 | Superfície de ataque mínima (backend não guarda senha nenhuma) | arquitetura geral |
 
 ## 🛠️ Stack técnica
@@ -113,18 +123,28 @@ do que a proteção real.
 
 ## ✅ Qualidade e operação
 
-- **Testes automatizados**: 28 no frontend + 19 no backend (`npm test` em
-  cada pacote), incluindo testes de integração HTTP reais via `supertest`
-  e um teste estatístico que valida a ausência de viés no gerador de senha.
+- **Testes automatizados**: 32 no frontend + 21 no backend (`npm test` em
+  cada pacote), incluindo testes de integração HTTP reais via `supertest`,
+  um teste estatístico que valida a ausência de viés no gerador de senha, e
+  testes E2E com Playwright (`npm run test:e2e`) exercitando a interface
+  num navegador real.
 - **CI**: workflow do GitHub Actions (`.github/workflows/ci.yml`) rodando
-  testes, build e `npm audit` a cada push — veja a nota sobre onde colocar
-  esse arquivo no próprio workflow.
+  escaneamento de segredos (gitleaks), testes, build, testes E2E e
+  `npm audit` a cada push — veja a nota sobre onde colocar esse arquivo no
+  próprio workflow.
 - **Dependabot**: atualização semanal de dependências configurada
   (`.github/dependabot.yml`).
 - **Cabeçalhos de segurança**: CSP, `X-Frame-Options`, `Referrer-Policy` e
   `Permissions-Policy` configurados via `netlify.toml`.
 - **Privacidade**: política documentada em [PRIVACY.md](./PRIVACY.md),
   com retenção automática de 90 dias para os logs via TTL do Firestore.
+- **Modelo de ameaças e política de segurança**: documentados em
+  [THREAT_MODEL.md](./THREAT_MODEL.md) e [SECURITY.md](./SECURITY.md).
+- **Rate limiting escalável**: suporte opcional a Redis para funcionar
+  corretamente com múltiplas instâncias do backend (ver
+  `server/README.md`).
+- **Monitoramento**: instruções para configurar uptime-check gratuito
+  documentadas em `server/README.md`.
 
 ## 🚀 Rodando localmente
 
@@ -163,6 +183,13 @@ Testes (cada pacote tem sua própria suíte):
 ```bash
 npm test              # frontend — inclui o teste de viés do CSPRNG
 cd server && npm test # backend — inclui teste real de rate limiting via HTTP
+```
+
+Testes E2E (Playwright, abre um navegador real e testa a interface):
+
+```bash
+npx playwright install  # baixa o navegador (só na primeira vez)
+npm run test:e2e
 ```
 
 ## ☁️ Deploy

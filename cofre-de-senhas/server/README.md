@@ -29,6 +29,22 @@ logs simplesmente vão para o console em vez de serem persistidos.
 | `ALLOWED_ORIGIN` | recomendada | Origem permitida por CORS (URL do frontend) |
 | `IP_HASH_SALT` | recomendada | Salt para o hash de IPs nos logs — gere um valor único em produção |
 | `FIREBASE_SERVICE_ACCOUNT` | não | JSON da service account do Firebase, em uma linha. Sem isso, logs só vão pro console |
+| `REDIS_URL` | não | Conexão Redis para rate limiting escalável entre múltiplas instâncias. Sem isso, cai para armazenamento em memória (ok para uma única instância) |
+
+## Escalabilidade do rate limiting
+
+Por padrão, o rate limiter guarda a contagem de requisições em memória,
+dentro do próprio processo Node. Isso funciona perfeitamente com uma
+instância só (o cenário atual em produção), mas **não é escalável
+horizontalmente**: se um dia houver mais de uma instância do backend atrás
+de um load balancer, cada uma teria seu próprio contador, e alguém
+poderia burlar o limite alternando entre elas.
+
+Configurando `REDIS_URL`, o rate limiter passa a usar Redis como
+armazenamento compartilhado (via `rate-limit-redis`), e o limite passa a
+valer de verdade entre quantas instâncias existirem. Serviços como
+[Upstash](https://upstash.com/) oferecem Redis gratuito compatível com
+esse uso.
 
 ## Endpoints
 
@@ -69,3 +85,17 @@ Qualquer host que rode um processo Node contínuo funciona: Railway (mais
 simples, conecte o repo e aponte o diretório raiz para `server`), Oracle
 Cloud Free Tier (com `pm2` + Nginx como proxy reverso com HTTPS), ou
 Google Cloud Run.
+
+## Monitoramento de disponibilidade
+
+O plano gratuito do Render hiberna o serviço após um período de
+inatividade — a primeira requisição depois disso demora até ~1 minuto pra
+responder. Duas formas de lidar com isso:
+
+1. **Aceitar a hibernação** e mostrar isso na UI (já feito — ver o aviso
+   na tela de análise).
+2. **Evitar a hibernação** configurando um monitor gratuito (ex:
+   [UptimeRobot](https://uptimerobot.com/)) para bater em `/api/health` a
+   cada 5 minutos. Isso mantém o serviço sempre ativo, com o efeito
+   colateral positivo de te avisar (por e-mail) se o backend cair de
+   verdade.
