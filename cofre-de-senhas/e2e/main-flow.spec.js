@@ -46,7 +46,15 @@ test.describe("Cofre de Senhas — fluxo principal", () => {
     // vez de exigir sucesso, já que este teste roda contra a UI real, não
     // um mock, e a disponibilidade do backend está fora do controle do
     // frontend em si.
-    const resultado = page.getByText(/vazamento|Não encontrada|Muitas consultas|Não foi possível consultar/);
+    //
+    // O regex usa frases específicas do RESULTADO (não só a palavra
+    // "vazamento" isolada), porque essa palavra também aparece no título
+    // fixo da seção ("Consulta a vazamentos conhecidos...") e no rodapé
+    // da página — usar só "vazamento" faz o Playwright encontrar 3
+    // elementos ao mesmo tempo e falhar por ambiguidade.
+    const resultado = page.getByText(
+      /Encontrada em|Não encontrada nos vazamentos consultados|Muitas consultas em pouco tempo|Não foi possível consultar agora/
+    );
     await expect(resultado).toBeVisible({ timeout: 20_000 });
   });
 });
