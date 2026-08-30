@@ -2,11 +2,13 @@
 
 [![CI](https://github.com/Samfp18/Projects-Hub/actions/workflows/ci.yml/badge.svg)](https://github.com/Samfp18/Projects-Hub/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Testes](https://img.shields.io/badge/testes-47%20passando-brightgreen)](./README.md#-qualidade-e-opera%C3%A7%C3%A3o)
+[![Testes](https://img.shields.io/badge/testes-103%20passando-brightgreen)](./README.md#-qualidade-e-opera%C3%A7%C3%A3o)
 
-> Verificador e gerador de senhas seguras. Frontend 100% client-side; um
-> backend leve atua só como proxy de rede e observabilidade — nunca vê
-> senha, hash completo, nem armazena nada sensível.
+> Verificador e gerador de senhas seguras, com um cofre pessoal
+> zero-knowledge integrado. A análise/geração continua 100% client-side;
+> o backend atua como proxy de observabilidade para o verificador de
+> vazamento E como servidor de autenticação/sincronização do cofre — sem
+> nunca ver senha em texto puro em nenhum dos dois casos.
 
 **🔗 [Testar ao vivo](https://cofre-senha.netlify.app/)**
 
@@ -48,6 +50,16 @@ aleatórios criptograficamente seguro) e a diferença entre "parece seguro" e
   nunca armazenar senha, hash completo ou IP em texto puro.
 - **Interface bilíngue**: alterna entre português e inglês com um clique,
   sem recarregar a página.
+- **🔐 Meu Cofre — gerenciador de senhas pessoal**: aba nova com um cofre
+  de senhas de verdade, com criptografia **zero-knowledge**: a senha
+  mestra e a chave de criptografia nunca saem do seu navegador — o
+  backend só armazena e sincroniza itens já cifrados (AES-GCM). Inclui
+  CRUD completo de itens (com histórico de versões), 2FA (TOTP), bloqueio
+  progressivo por força bruta, auto-bloqueio do cofre por inatividade,
+  cópia de senha com limpeza automática do clipboard, alerta de senha
+  reutilizada entre itens, e verificação de vazamento por item
+  (reaproveitando o mesmo proxy HIBP do restante do app). Ver seção
+  dedicada abaixo.
 
 ## 🏗️ Arquitetura
 
@@ -88,7 +100,46 @@ DevTools foram propositalmente deixados de fora: são triviais de contornar
 e, num projeto de segurança da informação, soam mais a teatro de segurança
 do que a proteção real.
 
+## 🔐 Meu Cofre — arquitetura de criptografia
 
+O gerenciador de senhas pessoal usa o mesmo modelo de duas chaves
+independentes derivadas de uma senha mestra que produtos como Bitwarden e
+1Password usam:
+
+```
+senha mestra
+     │
+     ▼ PBKDF2-SHA256 (600.000 iterações, salt único)
+masterKeyBits ── nunca sai do navegador
+     │
+     ├─► HMAC-SHA256(..., "vault-encryption-key") → encryptionKey
+     │        (embrulha/desembrulha a chave do cofre — nunca sai do navegador)
+     │
+     └─► HMAC-SHA256(..., "vault-auth-proof") → authProof
+              (ESSE vai para o servidor, só para login)
+
+vaultKey (aleatória, 256 bits, gerada uma vez)
+     ├─► criptografa cada item do cofre (AES-GCM)
+     └─► fica guardada "embrulhada" pela encryptionKey no servidor
+```
+
+Trocar a senha mestra só reembrulha a `vaultKey` — não recriptografa item
+por item. Ver `src/lib/vaultCrypto.js` para a implementação completa e
+comentada, e `src/lib/__tests__/vaultCrypto.test.js` para os testes que
+confirmam (com criptografia real, não simulada) que uma senha errada
+nunca desembrulha a chave do cofre.
+
+O cofre usa um banco **separado** (SQLite, arquivo próprio) do restante
+do backend — a tabela de itens só armazena `ciphertext`/`iv`, nunca campos
+legíveis. Autenticação segue o mesmo padrão do
+[Guardião de Acessos](../guardiao-de-acessos): JWT de acesso curto (15
+min) + refresh token rotativo + 2FA (TOTP) + bloqueio progressivo por
+força bruta.
+
+**Por que confiar nisso (ou não):** é um projeto pessoal testado, seguindo
+práticas reais do setor — não um produto auditado por terceiros. Não
+existe recuperação de senha mestra, de propósito: se o servidor pudesse
+recuperá-la, o desenho zero-knowledge estaria quebrado.
 
 ## 🧠 Por que isso importa (a parte "segurança da informação" do projeto)
 
@@ -98,6 +149,8 @@ do que a proteção real.
 | K-anonimato (privacidade em consultas) | `src/lib/pwnedCheck.js` |
 | CSPRNG vs PRNG comum | `src/lib/generate.js` |
 | Trade-off memorabilidade × entropia real (senha derivada de frase) | `src/lib/generateFromPhrase.js` |
+| Criptografia zero-knowledge (duas chaves independentes de uma senha) | `src/lib/vaultCrypto.js` |
+| Isolamento de dados entre usuários (multi-tenant básico) | `server/src/routes/vault.js` |
 | Rate limiting contra abuso | `server/src/middleware/rateLimiter.js` |
 | Logs de segurança sem violar privacidade (hash de IP com salt) | `server/src/utils/hashIp.js` |
 | Observabilidade com custo de leitura O(1) em escala | `server/src/services/logger.js` |
@@ -120,14 +173,23 @@ do que a proteção real.
   não inflar o carregamento inicial da página com os dicionários.
 - Node.js + Express no backend, com `helmet`, `cors`, `express-rate-limit`
   e `firebase-admin`
+- `better-sqlite3`, `bcrypt`, `jsonwebtoken`, `otplib`, `qrcode`, `zod`
+  para autenticação e armazenamento do Meu Cofre
 
 ## ✅ Qualidade e operação
 
-- **Testes automatizados**: 32 no frontend + 21 no backend (`npm test` em
-  cada pacote), incluindo testes de integração HTTP reais via `supertest`,
-  um teste estatístico que valida a ausência de viés no gerador de senha, e
-  testes E2E com Playwright (`npm run test:e2e`) exercitando a interface
-  num navegador real.
+- **Testes automatizados**: 63 no frontend + 40 no backend (`npm test` em
+  cada pacote) — 103 no total, incluindo testes de integração HTTP reais
+  via `supertest`, testes de criptografia real (cifra/decifra de verdade
+  via Web Crypto API, confirma que senha mestra errada nunca desembrulha
+  o cofre), um teste estatístico que valida a ausência de viés no gerador
+  de senha, e testes E2E com Playwright (`npm run test:e2e`) exercitando
+  a interface num navegador real.
+- **Teste E2E do backend contra servidor real**: `server/scripts/e2e-smoke-test.sh`
+  bate via HTTP de verdade (não em processo) contra o servidor rodando —
+  25 verificações cobrindo todos os endpoints, incluindo casos negativos
+  (sem token, senha errada, token revogado). Rode de novo depois de
+  qualquer deploy: `BASE_URL=https://sua-api.onrender.com ./scripts/e2e-smoke-test.sh`.
 - **CI**: workflow do GitHub Actions (`.github/workflows/ci.yml`) rodando
   escaneamento de segredos (gitleaks), testes, build, testes E2E e
   `npm audit` a cada push — veja a nota sobre onde colocar esse arquivo no
@@ -163,13 +225,15 @@ Abra `http://localhost:5173`.
 ```bash
 cd server
 npm install
-cp .env.example .env    # funciona com os padrões para desenvolvimento local
+cp .env.example .env    # ajuste JWT_SECRET para o Meu Cofre funcionar
 npm run dev
 ```
 
 Sobe em `http://localhost:3001`. Sem isso rodando, a aba "Analisar" ainda
-funciona (cálculo de entropia é local), só a verificação de vazamento fica
-indisponível.
+funciona (cálculo de entropia é local), só a verificação de vazamento e o
+Meu Cofre ficam indisponíveis. `JWT_SECRET` é obrigatória para
+cadastro/login no cofre — sem ela, essas rotas especificamente falham
+(o restante do app continua normal).
 
 Build de produção do frontend:
 
@@ -224,6 +288,8 @@ brincadeira":
 - **O que já é de nível de produção**: geração de senha (CSPRNG com
   rejection sampling), verificação de vazamento (k-anonimato correto),
   análise de força (zxcvbn-ts, o mesmo algoritmo usado por produtos reais),
+  criptografia zero-knowledge do Meu Cofre (mesma arquitetura de duas
+  chaves usada por Bitwarden/1Password, testada com criptografia real),
   backend com rate limiting, logs privacy-safe com retenção automática, CI
   com testes e auditoria de dependência, e cabeçalhos de segurança HTTP.
   Nenhum desses pontos tem uma ressalva de "não confie nisso de verdade".
@@ -240,6 +306,12 @@ brincadeira":
 - O backend nunca recebe senha nem hash completo — só o prefixo de 5
   caracteres, que já é insuficiente para identificar a senha original por
   design do próprio modelo de k-anonimato.
+- **Meu Cofre não tem recuperação de senha mestra, de propósito.** Se o
+  servidor pudesse recuperá-la, o desenho zero-knowledge estaria quebrado
+  — perder a senha mestra significa perder o acesso ao conteúdo do cofre.
+  Também não há verificação de e-mail no cadastro nem compartilhamento de
+  item entre contas (fora de escopo, documentado como decisão, não
+  esquecimento).
 - O `npm audit` do backend aponta vulnerabilidades de severidade
   **moderada** (não alta/crítica) em dependências transitivas do
   `firebase-admin`, fora do controle direto deste projeto — o CI está
@@ -258,10 +330,12 @@ MIT — veja [LICENSE](./LICENSE).
 ## English
 
 Password strength checker and generator, built as a security portfolio
-project. The frontend does all sensitive work locally (entropy calculation,
-password generation, hashing); a lightweight Node/Express backend acts only
-as a proxy and observability layer — it never sees the password or the full
-hash, only the 5-character k-anonymity prefix.
+project — now including a full personal password manager ("Meu Cofre")
+with real zero-knowledge encryption. The frontend does all sensitive work
+locally (entropy calculation, password generation, hashing, vault
+encryption/decryption); the backend acts as a proxy/observability layer
+for the breach checker AND as an authentication/sync server for the
+vault — never seeing plaintext passwords in either case.
 
 **Features:** password strength analysis via [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)
 (the same class of algorithm used by real security products, with a
@@ -270,21 +344,29 @@ small), breach checking against Have I Been Pwned via the k-anonymity model
 (through our own backend proxy), a CSPRNG-based generator
 (`crypto.getRandomValues`, with rejection sampling to avoid modulo bias), a
 phrase-to-password generator, a show/hide toggle for generated passwords,
-rate limiting (30 requests/15min per IP), and privacy-conscious security
+rate limiting (30 requests/15min per IP), privacy-conscious security
 logging (IP hashed with salt, 90-day automatic retention via Firestore TTL)
-— see [PRIVACY.md](./PRIVACY.md).
+— see [PRIVACY.md](./PRIVACY.md) — and **My Vault**: a zero-knowledge
+password manager (same two-key architecture as Bitwarden/1Password: a
+PBKDF2-derived master key that never leaves the browser, wrapping a
+per-vault AES-GCM key), with 2FA, progressive brute-force lockout,
+auto-lock on inactivity, clipboard auto-clear, duplicate-password
+warnings, and per-item breach checking.
 
 **Stack:** React 19, Vite, Tailwind CSS 4, Web Crypto API on the frontend;
-Node.js, Express, Firestore on the backend.
+Node.js, Express, Firestore, and SQLite (`better-sqlite3`) on the backend.
 
-**Quality & operations:** 28 frontend + 19 backend automated tests
-(including real HTTP integration tests and a statistical bias check on the
-generator), GitHub Actions CI running tests/build/`npm audit` on every
+**Quality & operations:** 63 frontend + 40 backend automated tests (103
+total), including real HTTP integration tests, real cryptography tests
+(actual encrypt/decrypt via the Web Crypto API, confirming a wrong master
+password never unwraps the vault), and a statistical bias check on the
+generator. GitHub Actions CI running tests/build/`npm audit` on every
 push, Dependabot for weekly dependency updates, and HTTP security headers
 (CSP, X-Frame-Options, etc.) via `netlify.toml`.
 
 **Run locally:** see the Portuguese section above (`Rodando localmente`) —
-commands are the same regardless of language.
+commands are the same regardless of language. Note: `JWT_SECRET` must be
+set in the backend `.env` for the vault's register/login to work.
 
 **Deploy:** static frontend build (`npm run build` → `dist/`) on Netlify or
 similar; the backend needs a long-running Node process (Railway, Oracle
@@ -294,6 +376,8 @@ Cloud Free Tier, etc.) since it isn't a static site.
 production-grade (see the "Avisos importantes" section above for the exact
 breakdown). Crack-time estimates always assume an attack scenario (here,
 offline fast hashing) — that's inherent to any such estimate, not specific
-to this tool. Don't reuse real passwords in public demos of this tool.
+to this tool. There is no master password recovery for My Vault, by
+design — losing it means losing access to the vault's contents. Don't
+reuse real passwords in public demos of this tool.
 
 License: MIT.

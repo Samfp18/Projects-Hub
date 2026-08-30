@@ -30,6 +30,8 @@ logs simplesmente vão para o console em vez de serem persistidos.
 | `IP_HASH_SALT` | recomendada | Salt para o hash de IPs nos logs — gere um valor único em produção |
 | `FIREBASE_SERVICE_ACCOUNT` | não | JSON da service account do Firebase, em uma linha. Sem isso, logs só vão pro console |
 | `REDIS_URL` | não | Conexão Redis para rate limiting escalável entre múltiplas instâncias. Sem isso, cai para armazenamento em memória (ok para uma única instância) |
+| `JWT_SECRET` | **sim, para o Meu Cofre** | Segredo pra assinar os JWTs de acesso das contas do cofre. Sem isso, cadastro/login do cofre falha (o resto do backend continua normal) |
+| `DB_PATH` | não (padrão `./data.sqlite`) | Caminho do banco SQLite do Meu Cofre — use `:memory:` para testes |
 
 ## Escalabilidade do rate limiting
 
@@ -48,6 +50,7 @@ esse uso.
 
 ## Endpoints
 
+**Verificador de vazamento (público, sem login):**
 - `GET /api/health` — healthcheck simples, sempre `{ status: "ok" }`
 - `GET /api/check-pwned/:prefix` — proxy do HIBP; `:prefix` precisa ser 5
   caracteres hexadecimais
@@ -55,10 +58,41 @@ esse uso.
   bloqueios por rate limit); retorna `available: false` se o Firestore não
   estiver configurado
 
+**Meu Cofre (autenticação e itens):**
+- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`,
+  `POST /api/auth/logout` — ciclo de vida da sessão
+- `GET /api/auth/kdf-params?email=...` — rota pública que devolve o salt e
+  as iterações de PBKDF2 de uma conta, necessário para o navegador
+  calcular o `authProof` antes do login (ver `src/lib/vaultCrypto.js` no
+  frontend)
+- `POST /api/auth/2fa/setup`, `POST /api/auth/2fa/verify` — ativação de 2FA
+- `POST /api/auth/change-master-password` — troca de senha mestra,
+  revoga todas as sessões existentes
+- `GET/POST/PUT/DELETE /api/vault/items` — CRUD dos itens do cofre (todos
+  exigem token de acesso válido)
+- `GET /api/vault/items/:id/history` — histórico de versões de um item
+
 ## Testes
 
 ```bash
 npm test
+```
+
+## Teste de ponta a ponta (servidor real)
+
+```bash
+npm run dev   # em um terminal
+./scripts/e2e-smoke-test.sh   # em outro terminal
+```
+
+Diferente dos testes automatizados (que rodam em processo, via
+`supertest`), este script bate via HTTP de verdade contra um servidor
+rodando — pega problemas que só aparecem no mundo real (porta errada,
+variável de ambiente faltando, CORS mal configurado). Roda de novo depois
+de qualquer deploy:
+
+```bash
+BASE_URL=https://sua-api.onrender.com ./scripts/e2e-smoke-test.sh
 ```
 
 Inclui testes de integração reais via `supertest` (rotas HTTP de verdade,

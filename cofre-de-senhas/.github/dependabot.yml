@@ -1,0 +1,29 @@
+# IMPORTANTE: assim como o workflow de CI, o Dependabot só é reconhecido
+# pelo GitHub em .github/dependabot.yml na RAIZ do repositório. Copie este
+# arquivo para lá (mescle com um dependabot.yml existente, se já tiver um
+# pra outro projeto do portfólio, em vez de sobrescrever).
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/cofre-de-senhas"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "cofre-de-senhas"
+
+  - package-ecosystem: "npm"
+    directory: "/cofre-de-senhas/server"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "cofre-de-senhas"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"

@@ -2,7 +2,9 @@ import { useState } from "react";
 import Checker from "./components/Checker";
 import Generator from "./components/Generator";
 import PhraseGenerator from "./components/PhraseGenerator";
+import VaultTab from "./components/VaultTab";
 import { LanguageProvider, useLanguage } from "./i18n/LanguageContext";
+import { VaultProvider } from "./context/VaultContext";
 
 function AppContent() {
   const [tab, setTab] = useState("checker");
@@ -12,6 +14,7 @@ function AppContent() {
     { id: "checker", label: t("tabChecker") },
     { id: "generator", label: t("tabGenerator") },
     { id: "phrase", label: t("tabPhrase") },
+    { id: "vault", label: "Meu Cofre" },
   ];
 
   return (
@@ -39,7 +42,7 @@ function AppContent() {
         <p className="font-body text-paper-dim mt-3 max-w-xl">{t("appSubtitle")}</p>
       </header>
 
-      <nav className="w-full max-w-3xl flex gap-1 mb-[-1px] relative z-10" role="tablist">
+      <nav className="w-full max-w-3xl flex gap-1 mb-[-1px] relative z-10 flex-wrap" role="tablist">
         {TABS.map((tabItem) => (
           <button
             key={tabItem.id}
@@ -61,6 +64,7 @@ function AppContent() {
         {tab === "checker" && <Checker />}
         {tab === "generator" && <Generator />}
         {tab === "phrase" && <PhraseGenerator />}
+        {tab === "vault" && <VaultTab />}
       </main>
 
       <footer className="w-full max-w-3xl mt-10 font-mono text-xs text-paper-dim/70 flex flex-col gap-1">
@@ -74,7 +78,9 @@ function AppContent() {
 export default function App() {
   return (
     <LanguageProvider>
-      <AppContent />
+      <VaultProvider>
+        <AppContent />
+      </VaultProvider>
     </LanguageProvider>
   );
 }
