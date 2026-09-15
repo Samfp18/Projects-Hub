@@ -8,7 +8,7 @@ export function MenuScreen({ active, onAction, canContinuar }: MenuScreenProps) 
     { action: 'nova', label: 'Nova Simulação' },
     { action: 'continuar', label: 'Continuar', disabled: !canContinuar },
     { action: 'carregar', label: 'Carregar Save' },
-    { action: 'config', label: 'Configurações' },
+    { action: 'ajustes', label: 'Configurações' },
     { action: 'sobre', label: 'Sobre o Motor' },
     { action: 'sair', label: 'Sair' },
   ];

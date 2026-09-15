@@ -31,7 +31,7 @@ export interface LogEntry {
   msg: string;
 }
 
-export type Tela = 'menu' | 'config' | 'hud' | 'iabug';
+export type Tela = 'menu' | 'config' | 'hud' | 'iabug' | 'sobre' | 'ajustes' | 'saves';
 
 export type NarrativaState =
   | { tipo: 'placeholder' }
@@ -43,4 +43,16 @@ export interface ChatMsg {
   id: string;
   tipo: 'system' | 'user' | 'ia';
   texto: string;
+}
+
+export interface SaveSlot {
+  id: string;
+  cenario: string;
+  protagonistaNome: string;
+  savedAt: string;
+  configMemoria: ConfigMemoria;
+  turno: number;
+  vinheta: number;
+  historicoVinhetas: string[];
+  narrativa: NarrativaState;
 }

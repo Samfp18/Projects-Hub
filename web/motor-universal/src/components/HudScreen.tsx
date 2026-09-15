@@ -1,13 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import L from 'leaflet';
-import type { ConfigMemoria, LogEntry, NarrativaState } from '../types';
+import type { ConfigMemoria, LogEntry, NarrativaState, SaveSlot } from '../types';
 import { LOCAIS_MAPA, FACCOES_MAPA, ROTAS_MAPA, NPCS_MAPA, STATS_DEMO, RECURSOS_DEMO, STATUS_DEMO, NEMESIS_DEMO, HUD_TABS, TILE_URL, TILE_OPTS } from '../data';
 import { autonomiaInfo, relacaoLabel, faccaoInfo, asciiBar, horaAgora, iniciais } from '../helpers';
 import { DEEPSEEK_URL, DEEPSEEK_MODEL_VINHETA, buildPromptVinheta } from '../api';
 
-interface HudScreenProps { active: boolean; configMemoria: ConfigMemoria | null; onVoltarMenu: () => void; onOpenIabug: () => void; }
+interface HudScreenProps {
+  active: boolean;
+  configMemoria: ConfigMemoria | null;
+  resumeSlot: SaveSlot | null;
+  onVoltarMenu: () => void;
+  onOpenIabug: () => void;
+  onSave: (snapshot: { turno: number; vinheta: number; historicoVinhetas: string[]; narrativa: NarrativaState }) => void;
+}
 
-export function HudScreen({ active, configMemoria, onVoltarMenu, onOpenIabug }: HudScreenProps) {
+export function HudScreen({ active, configMemoria, resumeSlot, onVoltarMenu, onOpenIabug, onSave }: HudScreenProps) {
   const [activeTab, setActiveTab] = useState<string>('narrativa');
   const [leftCollapsed, setLeftCollapsed] = useState<boolean>(false);
   const [rightCollapsed, setRightCollapsed] = useState<boolean>(false);
@@ -36,20 +43,33 @@ export function HudScreen({ active, configMemoria, onVoltarMenu, onOpenIabug }: 
 
   useEffect(() => {
     setLog([]);
-    setNarrativa({ tipo: 'placeholder' });
-    setTurno(1); setVinheta(0); setHistoricoVinhetas([]);
     if (!configMemoria) {
+      setNarrativa({ tipo: 'placeholder' });
+      setTurno(1); setVinheta(0); setHistoricoVinhetas([]);
       addLog('warn', 'Sem configuração. Volte ao menu e inicie uma nova simulação.');
       return;
     }
-    addLog('accent', `Simulação iniciada — ${configMemoria.cenario}`);
-    addLog('info', `Protagonista: ${configMemoria.protagonista.nome} (${configMemoria.protagonista.papel})`);
-    addLog('info', `Tom: ${configMemoria.tom} · Ritmo: ${configMemoria.ritmo}`);
+
+    if (resumeSlot) {
+      setTurno(resumeSlot.turno);
+      setVinheta(resumeSlot.vinheta);
+      setHistoricoVinhetas(resumeSlot.historicoVinhetas);
+      setNarrativa(resumeSlot.narrativa);
+      addLog('accent', `Save carregado — ${configMemoria.cenario}`);
+      addLog('info', `Retomando no turno ${String(resumeSlot.turno).padStart(2, '0')}.`);
+    } else {
+      setNarrativa({ tipo: 'placeholder' });
+      setTurno(1); setVinheta(0); setHistoricoVinhetas([]);
+      addLog('accent', `Simulação iniciada — ${configMemoria.cenario}`);
+      addLog('info', `Protagonista: ${configMemoria.protagonista.nome} (${configMemoria.protagonista.papel})`);
+      addLog('info', `Tom: ${configMemoria.tom} · Ritmo: ${configMemoria.ritmo}`);
+      addLog('warn', 'Clique em CONTINUAR para gerar a primeira vinheta.');
+    }
+
     const qtdNpcs = configMemoria.npcs?.length || 0;
     const qtdFaccoes = configMemoria.faccoes?.length || 0;
     if (qtdNpcs > 0) addLog('info', `${qtdNpcs} personagens carregados.`);
     if (qtdFaccoes > 0) addLog('info', `${qtdFaccoes} facções carregadas.`);
-    addLog('warn', 'Clique em CONTINUAR para gerar a primeira vinheta.');
     if (mapObjRef.current) mapObjRef.current.setView([configMemoria.localInicial.lat, configMemoria.localInicial.lng], configMemoria.localInicial.zoom);
     // eslint-disable-next-line
   }, [configMemoria]);
@@ -199,7 +219,9 @@ export function HudScreen({ active, configMemoria, onVoltarMenu, onOpenIabug }: 
     } else if (cmd === 'combate') {
       addLog('warn', 'Módulo de Combate Tático — em construção.');
     } else if (cmd === 'save') {
-      addLog('accent', 'Estado salvo em memória (placeholder).');
+      if (!configMemoria) { addLog('warn', 'Nada para salvar ainda.'); return; }
+      onSave({ turno, vinheta, historicoVinhetas, narrativa });
+      addLog('accent', 'Save gravado.');
     }
   }
 
